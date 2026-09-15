@@ -1,3 +1,5 @@
+import { signalLabel, signalName } from './labels.js';
+
 const API_BASE = 'https://api.telegram.org';
 
 const escapeHtml = (text) =>
@@ -29,13 +31,6 @@ export async function sendMessage(text, { token, chatId, dryRun = false } = {}) 
   }
 }
 
-// 차트 용어(골든크로스·이격 등) 대신 무슨 일이 일어났는지 풀어서 쓴다.
-const SIGNALS = {
-  golden: { title: '🟢 상승 전환', detail: '단기선이 장기선을 위로 통과했습니다.' },
-  dead: { title: '🔴 하락 전환', detail: '단기선이 장기선을 아래로 통과했습니다.' },
-  proximity: { title: '🟡 교차 임박', detail: '두 선이 가까워졌습니다. 곧 교차할 수 있습니다.' },
-};
-
 const krw = (value) =>
   value >= 1000
     ? Math.round(value).toLocaleString('ko-KR')
@@ -45,17 +40,17 @@ const krw = (value) =>
 export function formatSignal(signal, { market, unit, short, long }) {
   const coin = market.split('-')[1];
   const chartUrl = `https://upbit.com/exchange?code=CRIX.UPBIT.${market}`;
-  const { title, detail } = SIGNALS[signal.type] ?? { title: signal.type, detail: '' };
-  const side = signal.gapPct >= 0 ? '단기선이 장기선 위' : '단기선이 장기선 아래';
+  const { emoji, full } = signalLabel(signal.type, { short, long });
+  const side = signal.gapPct >= 0 ? `${short}선이 위` : `${short}선이 아래`;
 
   return [
-    `${title} · <b>${escapeHtml(coin)}</b> (${unit}분봉)`,
-    detail,
+    `${emoji} <b>${escapeHtml(coin)}</b> (${unit}분봉)`,
+    full,
     '',
     `현재가: <b>${krw(signal.candle.close)}</b>`,
-    `단기선(${short}봉 평균): ${krw(signal.short)}`,
-    `장기선(${long}봉 평균): ${krw(signal.long)}`,
-    `두 선 차이: <b>${signal.gapPct.toFixed(3)}%</b> — ${side}`,
+    `${short}선: ${krw(signal.short)}`,
+    `${long}선: ${krw(signal.long)}`,
+    `두 선 차이: <b>${signal.gapPct.toFixed(3)}%</b> (${side})`,
     `기준 캔들: ${escapeHtml(signal.candle.timeKst.replace('T', ' '))} KST`,
     '',
     `<a href="${chartUrl}">업비트에서 보기</a>`,
@@ -72,7 +67,7 @@ export function formatStatus(summaries, { unit, short, long }) {
   });
 
   return [
-    `📊 현재 상태 (${unit}분봉 · 단기선 ${short}봉 / 장기선 ${long}봉)`,
+    `📊 현재 상태 (${unit}분봉 · ${short}선 / ${long}선)`,
     '',
     ...lines,
   ].join('\n');
