@@ -9,29 +9,72 @@ const REFRESH_MS = 60_000;
 const $ = (id) => document.getElementById(id);
 
 let settings = { candleUnit: 15, periods: { short: 50, long: 200 }, proximityThresholdPct: 0.3 };
-let markets = [];
+let markets = [];       // 화면에 띄워 둔 목록
+let alertMarkets = [];  // config.json 기준 = 실제로 알림이 오는 목록
 let allMarkets = [];
 let tab = 'current';
 
+/**
+ * GitHub Pages 주소에서 config.json 편집 링크를 만든다.
+ * (https://<계정>.github.io/<레포>/ → github.com/<계정>/<레포>/edit/main/config.json)
+ * 다른 곳에서 열었으면 링크를 만들 수 없으므로 null.
+ */
+function configEditUrl() {
+  const owner = location.hostname.match(/^([\w-]+)\.github\.io$/)?.[1];
+  const repo = location.pathname.split('/').filter(Boolean)[0];
+  return owner && repo ? `https://github.com/${owner}/${repo}/edit/main/config.json` : null;
+}
+
 function renderChips() {
-  $('chips').replaceChildren(
-    ...markets.map((market) =>
-      el('span', { class: 'chip' }, [
-        coinOf(market),
-        el('button', {
+  const chips = markets.map((market) => {
+    const alerting = alertMarkets.includes(market);
+    return el('span', { class: `chip ${alerting ? 'alerting' : ''}` }, [
+      coinOf(market),
+      // 화면에만 추가한 코인은 알림이 오지 않는다. 그 차이를 칩에서 바로 보여 준다.
+      el('span', {
+        class: 'chip-tag',
+        title: alerting ? '알림을 받는 코인입니다' : '이 브라우저에서 보기만 합니다',
+        text: alerting ? '알림' : '보기만',
+      }),
+      el('button', {
+        type: 'button',
+        'aria-label': `${market} 목록에서 빼기`,
+        text: '✕',
+        onclick: () => {
+          markets = markets.filter((m) => m !== market);
+          saveMarkets(markets);
+          renderChips();
+          render();
+        },
+      }),
+    ]);
+  });
+
+  const editUrl = configEditUrl();
+  const note = el('p', { class: 'chips-note' }, [
+    '🔔 ',
+    el('strong', { text: '알림' }),
+    '이 붙은 코인만 텔레그램으로 알림이 옵니다. 바꾸려면 ',
+    editUrl
+      ? el('a', { href: editUrl, target: '_blank', rel: 'noopener', text: 'config.json' })
+      : el('code', { text: 'config.json' }),
+    '의 markets를 고치세요. 여기서 추가한 코인은 이 브라우저에서 보기만 합니다.',
+    markets.join() === alertMarkets.join()
+      ? null
+      : el('button', {
           type: 'button',
-          'aria-label': `${market} 제거`,
-          text: '✕',
+          class: 'link',
+          text: '알림 목록으로 되돌리기',
           onclick: () => {
-            markets = markets.filter((m) => m !== market);
+            markets = [...alertMarkets];
             saveMarkets(markets);
             renderChips();
             render();
           },
         }),
-      ]),
-    ),
-  );
+  ]);
+
+  $('chips').replaceChildren(...chips, note);
 }
 
 async function render() {
@@ -90,7 +133,8 @@ async function init() {
       periods: { ...settings.periods, ...config.periods },
       proximityThresholdPct: config.alerts?.proximityThresholdPct ?? settings.proximityThresholdPct,
     };
-    markets = loadMarkets() ?? config.markets ?? [];
+    alertMarkets = config.markets ?? [];
+    markets = loadMarkets() ?? [...alertMarkets];
   } catch {
     markets = loadMarkets() ?? ['KRW-BTC'];
   }
