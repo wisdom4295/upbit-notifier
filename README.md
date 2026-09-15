@@ -26,13 +26,22 @@
 
 ### 2. chat_id 확인
 
-로컬에서 한 번만 실행합니다.
+브라우저 주소창에 아래 주소를 넣고 열면 됩니다. `<토큰>` 자리에 1단계에서 받은 토큰을 그대로 붙여넣으세요.
+
+```
+https://api.telegram.org/bot<토큰>/getUpdates
+```
+
+화면에 나오는 `"chat":{"id":123456789` 에서 **숫자 부분**이 `chat_id`입니다.
+
+> `{"ok":true,"result":[]}` 처럼 비어 있으면 3단계(봇에게 메시지 보내기)를 아직 안 한 것입니다.
+> 메시지를 보낸 뒤 새로고침하세요.
+
+터미널을 쓰신다면 이 명령도 같은 일을 합니다.
 
 ```bash
 TELEGRAM_BOT_TOKEN=붙여넣기 npm run chat-id
 ```
-
-출력된 숫자가 `chat_id`입니다.
 
 ### 3. GitHub Secrets 등록
 
@@ -46,7 +55,12 @@ TELEGRAM_BOT_TOKEN=붙여넣기 npm run chat-id
 ### 4. 워크플로 권한 켜기
 
 **Settings → Actions → General → Workflow permissions** 에서
-`Read and write permissions` 선택 후 저장. (알림 기록인 `state.json`을 커밋해야 중복 알림이 안 갑니다.)
+`Read and write permissions` 선택 후 저장.
+
+이걸 안 하면 두 가지가 막힙니다.
+
+- 알림 기록(`state.json`)을 커밋하지 못해 **같은 알림이 반복**됩니다
+- 대시보드 배포가 `Resource not accessible by integration` 으로 실패합니다
 
 ### 5. 동작 확인
 
