@@ -139,14 +139,14 @@ help - 명령 목록
 
 ```json
 {
-  "markets": ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL"],
+  "markets": ["KRW-BTC", "KRW-ETH", "KRW-XRP"],
   "candleUnit": 15,
   "periods": { "short": 50, "long": 200 },
   "alerts": {
     "goldenCross": true,
     "deadCross": true,
     "proximity": true,
-    "proximityThresholdPct": 0.3
+    "proximityThresholdPct": 0.5
   },
   "lookbackCandles": 8,
   "confirmOnClosedCandle": true
@@ -161,7 +161,7 @@ help - 명령 목록
 | `alerts.goldenCross` | 🟢 **50선 위로** — 50선이 200선을 위로 뚫을 때 |
 | `alerts.deadCross` | 🔴 **50선 아래로** — 50선이 200선을 아래로 뚫을 때 |
 | `alerts.proximity` | 🟡 **50선 근접** — 두 선 차이가 설정값 이내로 좁혀진 순간 1회 |
-| `alerts.proximityThresholdPct` | 근접 판정 기준(%). `0.3` = 두 선 차이가 0.3% 이내 |
+| `alerts.proximityThresholdPct` | 근접 판정 기준(%). `0.5` = 두 선 차이가 0.5% 이내. 넓힐수록 더 일찍, 더 자주 옵니다 |
 | `lookbackCandles` | 매 실행마다 되짚어 보는 과거 캔들 수. cron이 밀려도 놓치지 않게 해 줍니다 |
 | `confirmOnClosedCandle` | `true`면 **마감된 캔들**로만 판정 (진행 중인 캔들은 값이 계속 바뀌어 헛알림의 원인) |
 
@@ -197,7 +197,7 @@ help - 명령 목록
 | --- | --- | --- |
 | 🟢 **50선 위로** | 50선이 200선을 **아래에서 위로** 뚫었을 때 | 골든크로스 |
 | 🔴 **50선 아래로** | 50선이 200선을 **위에서 아래로** 뚫었을 때 | 데드크로스 |
-| 🟡 **50선 근접** | 두 선 차이가 설정값(기본 0.3%) 이내로 좁혀졌을 때 (아직 안 뚫음) | — |
+| 🟡 **50선 근접** | 두 선 차이가 설정값(기본 0.5%) 이내로 좁혀졌을 때 (아직 안 뚫음) | — |
 
 - **50선** = 최근 50개 봉의 평균 가격 (15분봉이면 약 12.5시간)
 - **200선** = 최근 200개 봉의 평균 가격 (약 2일)

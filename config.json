@@ -1,12 +1,19 @@
 {
-  "markets": ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL"],
+  "markets": [
+    "KRW-BTC",
+    "KRW-ETH",
+    "KRW-XRP"
+  ],
   "candleUnit": 15,
-  "periods": { "short": 50, "long": 200 },
+  "periods": {
+    "short": 50,
+    "long": 200
+  },
   "alerts": {
     "goldenCross": true,
     "deadCross": true,
     "proximity": true,
-    "proximityThresholdPct": 0.3
+    "proximityThresholdPct": 0.5
   },
   "lookbackCandles": 8,
   "confirmOnClosedCandle": true
