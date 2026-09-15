@@ -2,19 +2,19 @@
   "lastUpdateId": 135373827,
   "markets": {
     "KRW-BTC": {
-      "lastCheckedUtc": "2026-09-15T15:15:00",
+      "lastCheckedUtc": "2026-09-15T19:00:00",
       "lastSignalUtc": {}
     },
     "KRW-ETH": {
-      "lastCheckedUtc": "2026-09-15T15:15:00",
+      "lastCheckedUtc": "2026-09-15T19:00:00",
       "lastSignalUtc": {}
     },
     "KRW-XRP": {
-      "lastCheckedUtc": "2026-09-15T15:15:00",
+      "lastCheckedUtc": "2026-09-15T19:00:00",
       "lastSignalUtc": {}
     },
     "KRW-SOL": {
-      "lastCheckedUtc": "2026-09-15T15:15:00",
+      "lastCheckedUtc": "2026-09-15T19:00:00",
       "lastSignalUtc": {
         "dead": "2026-09-15T13:30:00"
       }
