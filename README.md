@@ -93,23 +93,47 @@ TELEGRAM_BOT_TOKEN=붙여넣기 npm run chat-id
 
 ## 관심 코인 고르기
 
-알림을 받을 코인은 **`config.json`의 `markets`** 한 곳에서 정합니다. 브라우저에서 바로 고칠 수 있습니다.
+**텔레그램에서 바꿉니다.** 폰에서 봇에게 말하면 다음 실행(최대 5분)부터 반영됩니다.
 
-1. 레포에서 **`config.json`** 클릭 → 오른쪽 위 **연필(✏️) 아이콘**
-2. `markets` 줄을 원하는 코인으로 수정
-3. 아래 **Commit changes** 클릭
+| 명령 | 하는 일 |
+| --- | --- |
+| `/list` | 지금 알림 받는 코인 |
+| `/add DOGE` | 코인 추가 |
+| `/remove XRP` | 코인 빼기 |
+| `/status` | 지금 시세와 두 선 위치 |
+| `/id` | 이 방의 번호 (다른 방으로 옮길 때) |
+| `/help` | 명령 목록 |
+
+코인 기호만 적으면 됩니다(`/add DOGE`). `KRW-DOGE`처럼 적어도 되고, 대소문자는 가리지 않습니다.
+업비트에 없는 코인은 추가되지 않고 그 자리에서 알려 줍니다.
+
+**설정한 대화방에서 온 명령만 받습니다.** 봇 이름을 아는 다른 사람이 목록을 바꿀 수는 없습니다.
+단체방으로 쓰신다면 그 방 사람들은 바꿀 수 있습니다.
+
+> 코인은 최대 20개까지입니다. 많을수록 매 실행의 업비트 호출이 늘어 호출 한도에 가까워집니다.
+
+### 명령을 메뉴로 띄우기 (선택)
+
+BotFather에서 `/setcommands` → 봇 선택 → 아래를 붙여넣으면, 폰에서 `/`만 쳐도 메뉴가 뜹니다.
+
+```
+list - 알림 받는 코인 보기
+add - 코인 추가 (예: /add DOGE)
+remove - 코인 빼기 (예: /remove XRP)
+status - 지금 시세 보기
+id - 이 방 번호 보기
+help - 명령 목록
+```
+
+### 파일로 바꾸기
+
+`config.json`의 `markets`를 직접 고쳐도 됩니다. 결과는 같습니다.
 
 ```json
 "markets": ["KRW-BTC", "KRW-ETH", "KRW-DOGE"]
 ```
 
-코인 코드는 업비트 표기 그대로 `KRW-` + 심볼입니다. (도지 → `KRW-DOGE`, 리플 → `KRW-XRP`)
-전체 목록은 [업비트 마켓 목록](https://api.upbit.com/v1/market/all?isDetails=false)에서 확인할 수 있습니다.
-
-커밋하면 **다음 실행(최대 5분)부터 바로 반영**됩니다. 따로 할 일은 없습니다.
-
-> 대시보드는 이 목록을 그대로 보여 주기만 합니다. 화면에서 코인을 더하거나 뺄 수는 없습니다 —
-> 알림 목록과 화면 목록이 달라지면 "왜 알림이 안 오지?" 하고 헤매게 되기 때문입니다.
+전체 코인 목록은 [업비트 마켓 목록](https://api.upbit.com/v1/market/all?isDetails=false)에서 볼 수 있습니다.
 
 ## 그 밖의 설정
 
@@ -234,6 +258,7 @@ src/telegram.js             메시지 포맷·전송
 src/history.js              신호 이력 기록 (월별 파일 + index.json)
 src/period.js               KST 기준 오늘/이번 주 범위, 신호 후 성과 계산
 src/labels.js               알림·화면에 쓰는 신호 이름 (설정한 기간 숫자로 생성)
+src/commands.js             텔레그램 명령 해석 (/add, /remove, /list …)
 src/review-stats.js         신호 종류별 성과 집계
 src/get-chat-id.js          chat_id 확인용 1회성 스크립트
 index.html, app.js, sw.js   PWA 껍데기

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 const VALID_UNITS = [1, 3, 5, 10, 15, 30, 60, 240];
 
@@ -15,6 +15,13 @@ const DEFAULTS = {
   lookbackCandles: 8,
   confirmOnClosedCandle: true,
 };
+
+/** 감시 목록만 바꿔 다시 저장한다. 나머지 설정은 건드리지 않는다. */
+export async function saveMarkets(markets, path = 'config.json') {
+  const raw = JSON.parse(await readFile(path, 'utf8'));
+  raw.markets = markets;
+  await writeFile(path, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
+}
 
 /**
  * config.json을 읽고 검증한다. 잘못된 값은 cron이 조용히 실패하는 대신

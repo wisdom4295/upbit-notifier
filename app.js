@@ -10,30 +10,15 @@ let settings = { candleUnit: 15, periods: { short: 50, long: 200 }, proximityThr
 let markets = [];
 let tab = 'current';
 
-/**
- * GitHub Pages 주소에서 config.json 편집 링크를 만든다.
- * (https://<계정>.github.io/<레포>/ → github.com/<계정>/<레포>/edit/main/config.json)
- * 다른 곳에서 열었으면 만들 수 없으므로 null.
- */
-function configEditUrl() {
-  const owner = location.hostname.match(/^([\w-]+)\.github\.io$/)?.[1];
-  const repo = location.pathname.split('/').filter(Boolean)[0];
-  return owner && repo ? `https://github.com/${owner}/${repo}/edit/main/config.json` : null;
-}
-
 /** 감시 목록은 config.json 하나뿐이다. 화면에서는 무엇을 보는지만 알려 준다. */
 function renderWatchlist() {
-  const editUrl = configEditUrl();
   const names = markets.map(coinOf).join(', ');
 
-  // replaceChildren은 el()과 달리 null을 걸러 주지 않고 "null" 글자로 넣는다.
+  // 바꾸는 창구는 텔레그램이다. 폰에서 코드 화면으로 보내지 않는다.
   $('watchlist').replaceChildren(
-    ...nodes(
-      el('span', { text: `알림 받는 코인 ${markets.length}개 · ` }),
-      el('span', { class: 'watchlist-names', text: names || '없음' }),
-      editUrl && ' · ',
-      editUrl && el('a', { href: editUrl, target: '_blank', rel: 'noopener', text: '바꾸기' }),
-    ),
+    el('span', { text: `알림 받는 코인 ${markets.length}개 · ` }),
+    el('span', { class: 'watchlist-names', text: names || '없음' }),
+    el('span', { class: 'watchlist-hint', text: '텔레그램에서 /add, /remove 로 바꿉니다' }),
   );
 }
 

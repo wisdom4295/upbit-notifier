@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
-const EMPTY = { markets: {} };
+// lastUpdateId: 여기까지 처리한 텔레그램 메시지. 같은 명령을 두 번 처리하지 않는다.
+const EMPTY = { lastUpdateId: 0, markets: {} };
 
 /** 알림 중복 발송을 막기 위한 상태. 워크플로가 레포에 커밋해 유지한다. */
 export async function loadState(path = 'state.json') {

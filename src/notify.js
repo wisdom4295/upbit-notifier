@@ -1,9 +1,10 @@
-import { loadConfig } from './config.js';
-import { fetchCandles } from './upbit.js';
+import { loadConfig, saveMarkets } from './config.js';
+import { fetchCandles, fetchMarketCodes } from './upbit.js';
 import { detectSignals, summarize } from './indicators.js';
-import { formatSignal, formatStatus, sendMessage } from './telegram.js';
+import { formatSignal, formatStatus, sendMessage, fetchUpdates } from './telegram.js';
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
 import { appendSignals } from './history.js';
+import { parseCommand, applyCommand } from './commands.js';
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
@@ -51,9 +52,63 @@ async function analyzeMarket(market, config, state) {
   return { market, summary, signals, marketState, checkedUtc: candles.at(-1).timeUtc };
 }
 
+/**
+ * 텔레그램으로 온 명령을 처리한다. 코드를 건드리지 않고 폰에서 감시 목록을
+ * 바꾸기 위한 통로다. 설정된 대화방에서 온 명령만 받아들인다.
+ *
+ * @returns {Promise<{markets: string[], statusRequested: boolean}>}
+ */
+async function handleCommands(config, state) {
+  let markets = config.markets;
+  let statusRequested = false;
+  if (dryRun) return { markets, statusRequested };
+
+  let updates;
+  try {
+    updates = await fetchUpdates({ token: telegram.token, offset: state.lastUpdateId ? state.lastUpdateId + 1 : undefined });
+  } catch (error) {
+    // 명령을 못 읽어도 알림은 계속 나가야 한다.
+    console.error('명령 조회 실패:', error.message);
+    return { markets, statusRequested };
+  }
+
+  let availableMarkets = [];
+  const hasEdit = updates.some((u) => ['add', 'remove'].includes(parseCommand(u.message?.text)?.name));
+  if (hasEdit) {
+    // 있지도 않은 코인을 목록에 넣지 않도록 실제 마켓 목록과 대조한다.
+    availableMarkets = await fetchMarketCodes().catch(() => []);
+  }
+
+  for (const update of updates) {
+    state.lastUpdateId = Math.max(state.lastUpdateId ?? 0, update.update_id);
+
+    const message = update.message;
+    // 설정된 대화방이 아니면 무시한다. 봇 이름을 아는 누구나 목록을 바꿀 수는 없다.
+    if (!message?.text || String(message.chat?.id) !== String(telegram.chatId)) continue;
+
+    const command = parseCommand(message.text);
+    if (!command) continue;
+
+    const result = applyCommand(command, { markets, availableMarkets, chatId: message.chat.id });
+    if (result.changed) {
+      markets = result.markets;
+      await saveMarkets(markets);
+      console.log(`명령 처리: /${command.name} ${command.arg} → ${markets.length}개`);
+    }
+    if (command.name === 'status') statusRequested = true;
+    if (result.reply) await sendMessage(result.reply, telegram);
+  }
+
+  return { markets, statusRequested };
+}
+
 async function main() {
   const config = await loadConfig();
   const state = await loadState();
+
+  // 명령을 먼저 처리해야 방금 추가한 코인도 이번 실행부터 감시된다.
+  const { markets, statusRequested } = await handleCommands(config, state);
+  config.markets = markets;
   const results = [];
   const failures = [];
 
@@ -102,7 +157,7 @@ async function main() {
     setMarketState(state, result.market, result.marketState);
   }
 
-  if (statusOnly) {
+  if (statusOnly || statusRequested) {
     await sendMessage(formatStatus(results, { unit: config.candleUnit, ...config.periods }), telegram);
   }
 

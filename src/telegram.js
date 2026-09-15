@@ -58,6 +58,24 @@ const krw = (value) =>
     ? Math.round(value).toLocaleString('ko-KR')
     : value.toLocaleString('ko-KR', { maximumFractionDigits: 4 });
 
+/**
+ * 봇이 받은 새 메시지를 가져온다. offset을 주면 그보다 앞선 것은 지워지므로
+ * 같은 명령을 두 번 처리하지 않는다.
+ */
+export async function fetchUpdates({ token, offset } = {}) {
+  if (!token) throw new Error('TELEGRAM_BOT_TOKEN 이 설정되지 않았습니다.');
+
+  const query = new URLSearchParams({ timeout: '0', allowed_updates: '["message"]' });
+  if (offset) query.set('offset', String(offset));
+
+  const response = await fetch(`${API_BASE}/bot${token}/getUpdates?${query}`);
+  if (!response.ok) throw new Error(`텔레그램 조회 실패 ${response.status}: ${await response.text()}`);
+
+  const body = await response.json();
+  if (!body.ok) throw new Error(`텔레그램 조회 실패: ${JSON.stringify(body)}`);
+  return body.result ?? [];
+}
+
 /** 시그널 1건을 텔레그램 메시지로 변환한다. */
 export function formatSignal(signal, { market, unit, short, long }) {
   const coin = market.split('-')[1];
