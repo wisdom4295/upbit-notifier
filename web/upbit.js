@@ -35,12 +35,3 @@ export async function fetchKrwMarkets() {
   const list = await response.json();
   return list.map((m) => m.market).filter((market) => market.startsWith('KRW-'));
 }
-
-/** 여러 마켓의 현재가를 한 번에 조회 */
-export async function fetchTickers(markets) {
-  if (markets.length === 0) return {};
-  const response = await fetch(`${BASE}/ticker?markets=${markets.join(',')}`);
-  if (!response.ok) throw new Error(`업비트 응답 ${response.status}`);
-  const list = await response.json();
-  return Object.fromEntries(list.map((t) => [t.market, t.trade_price]));
-}

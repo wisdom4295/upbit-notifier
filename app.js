@@ -52,8 +52,6 @@ async function render() {
   await renderReview($('tab-review'), {
     range: tab === 'today' ? todayRange() : weekRange(),
     settings,
-    markets,
-    rerender: render,
   });
 }
 

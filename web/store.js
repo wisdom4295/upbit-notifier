@@ -21,30 +21,9 @@ const write = (key, value) => {
 };
 
 const MARKETS_KEY = 'upbit-notifier:markets';
-const TRADES_KEY = 'upbit-notifier:trades';
 
 export const loadMarkets = () => {
   const stored = read(MARKETS_KEY, null);
   return Array.isArray(stored) && stored.length > 0 ? stored : null;
 };
 export const saveMarkets = (markets) => write(MARKETS_KEY, markets);
-
-/** @returns {import('../src/portfolio.js').Trade[]} */
-export const loadTrades = () => {
-  const stored = read(TRADES_KEY, []);
-  return Array.isArray(stored) ? stored : [];
-};
-export const saveTrades = (trades) => write(TRADES_KEY, trades);
-
-export function addTrade(trade) {
-  const trades = loadTrades();
-  trades.push({ ...trade, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` });
-  saveTrades(trades);
-  return trades;
-}
-
-export function removeTrade(id) {
-  const trades = loadTrades().filter((trade) => trade.id !== id);
-  saveTrades(trades);
-  return trades;
-}

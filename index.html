@@ -35,7 +35,7 @@
       }
       .tab[aria-selected='true'] { color: var(--text); border-color: var(--muted); font-weight: 600; }
       .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-      input, button, select {
+      input, button {
         font: inherit; color: var(--text); background: var(--card);
         border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
       }
@@ -73,15 +73,8 @@
       th { color: var(--muted); font-weight: 600; }
       td.num, th.num { text-align: right; }
       td.strong { font-weight: 700; }
-      td.memo { white-space: normal; color: var(--muted); min-width: 140px; }
       .scroll-hint { display: none; color: var(--muted); font-size: 12px; margin: 6px 2px 0; }
       @media (max-width: 620px) { .scroll-hint { display: block; } }
-
-      .trade-form { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-      .trade-form input { flex: 1 1 110px; }
-      .trade-form input[type='datetime-local'] { flex: 1 1 190px; }
-      .trade-form select { flex: 0 0 auto; }
-      .trade-form button { flex: 0 0 auto; }
 
       .empty, .error, .note { color: var(--muted); font-size: 13px; padding: 14px 0; }
       .empty { text-align: center; }
