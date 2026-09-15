@@ -1,160 +1,87 @@
-import { summarize } from './src/indicators.js';
+import { todayRange, weekRange } from './src/period.js';
+import { loadMarkets, saveMarkets } from './web/store.js';
+import { fetchKrwMarkets } from './web/upbit.js';
+import { renderCurrent } from './web/current.js';
+import { renderReview } from './web/review.js';
+import { el, coinOf } from './web/format.js';
 
-const UPBIT = 'https://api.upbit.com/v1';
-const STORAGE_KEY = 'upbit-notifier:markets';
 const REFRESH_MS = 60_000;
-
 const $ = (id) => document.getElementById(id);
+
 let settings = { candleUnit: 15, periods: { short: 50, long: 200 }, proximityThresholdPct: 0.3 };
 let markets = [];
 let allMarkets = [];
-
-/** 감시 목록: 로컬 저장값 > config.json 기본값 */
-function readStoredMarkets() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-    return Array.isArray(stored) && stored.length > 0 ? stored : null;
-  } catch {
-    return null; // 사파리 프라이빗 모드 등에서 접근 실패
-  }
-}
-
-function storeMarkets() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(markets));
-  } catch {
-    /* 저장 실패해도 화면은 동작해야 한다 */
-  }
-}
-
-async function fetchCandles(market, unit, count) {
-  const collected = [];
-  let cursor = null;
-
-  while (collected.length < count) {
-    const remaining = Math.min(200, count - collected.length);
-    const query = new URLSearchParams({ market, count: String(remaining) });
-    if (cursor) query.set('to', cursor);
-
-    const response = await fetch(`${UPBIT}/candles/minutes/${unit}?${query}`);
-    if (!response.ok) throw new Error(`업비트 응답 ${response.status}`);
-
-    const page = await response.json();
-    if (page.length === 0) break;
-    collected.push(...page);
-    cursor = `${page.at(-1).candle_date_time_utc}Z`;
-    if (page.length < remaining) break;
-  }
-
-  return collected
-    .map((c) => ({ timeKst: c.candle_date_time_kst, close: c.trade_price }))
-    .reverse();
-}
-
-const krw = (value) =>
-  value >= 1000
-    ? Math.round(value).toLocaleString('ko-KR')
-    : value.toLocaleString('ko-KR', { maximumFractionDigits: 4 });
+let tab = 'current';
 
 function renderChips() {
   $('chips').replaceChildren(
-    ...markets.map((market) => {
-      const chip = document.createElement('span');
-      chip.className = 'chip';
-      chip.textContent = market.replace('KRW-', '');
-
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.textContent = '✕';
-      remove.setAttribute('aria-label', `${market} 제거`);
-      remove.addEventListener('click', () => {
-        markets = markets.filter((m) => m !== market);
-        storeMarkets();
-        renderChips();
-        refresh();
-      });
-
-      chip.append(remove);
-      return chip;
-    }),
+    ...markets.map((market) =>
+      el('span', { class: 'chip' }, [
+        coinOf(market),
+        el('button', {
+          type: 'button',
+          'aria-label': `${market} 제거`,
+          text: '✕',
+          onclick: () => {
+            markets = markets.filter((m) => m !== market);
+            saveMarkets(markets);
+            renderChips();
+            render();
+          },
+        }),
+      ]),
+    ),
   );
 }
 
-function renderCards(rows) {
+async function render() {
   const { short, long } = settings.periods;
-  const container = $('cards');
+  $('subtitle').textContent = `${settings.candleUnit}분봉 · MA${short} / MA${long}`;
+  $('tab-current').hidden = tab !== 'current';
+  $('tab-review').hidden = tab === 'current';
+  // 감시 목록 편집은 '현재' 탭의 일이라 회고 탭에서는 감춰 화면을 비운다.
+  $('watchlist').hidden = tab !== 'current';
 
-  if (rows.length === 0) {
-    container.innerHTML = '<p class="empty">감시 중인 코인이 없습니다.</p>';
+  if (tab === 'current') {
+    $('cards').replaceChildren(el('p', { class: 'empty', text: '불러오는 중…' }));
+    await renderCurrent($('cards'), { markets, settings });
+    $('subtitle').textContent += ` · ${new Date().toLocaleTimeString('ko-KR')} 기준`;
     return;
   }
 
-  // 이평선에 가까운 순서로 정렬 — 교차 임박 종목이 위로 온다.
-  const sorted = [...rows].sort((a, b) => {
-    if (!a.summary) return 1;
-    if (!b.summary) return -1;
-    return Math.abs(a.summary.gapPct) - Math.abs(b.summary.gapPct);
+  await renderReview($('tab-review'), {
+    range: tab === 'today' ? todayRange() : weekRange(),
+    settings,
+    markets,
+    rerender: render,
   });
-
-  container.replaceChildren(
-    ...sorted.map(({ market, summary, error }) => {
-      const card = document.createElement('article');
-      card.className = 'card';
-      const coin = market.replace('KRW-', '');
-
-      if (error || !summary) {
-        card.innerHTML = `<div class="row"><span class="coin">${coin}</span></div>
-          <div class="meta">${error ?? `캔들 부족 (MA${long} 계산 불가)`}</div>`;
-        return card;
-      }
-
-      const gap = summary.gapPct;
-      const tone = Math.abs(gap) <= settings.proximityThresholdPct ? 'near' : gap >= 0 ? 'up' : 'down';
-      const width = Math.min(100, (Math.abs(gap) / (settings.proximityThresholdPct * 10)) * 100);
-
-      card.innerHTML = `
-        <div class="row">
-          <span class="coin">${coin}</span>
-          <span class="price">${krw(summary.price)}</span>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <span class="meta" style="margin:0">MA${short} ${krw(summary.short)} · MA${long} ${krw(summary.long)}</span>
-          <span class="gap ${tone}">${gap >= 0 ? '+' : ''}${gap.toFixed(3)}%</span>
-        </div>
-        <div class="bar gap ${tone}"><span style="width:${width}%"></span></div>
-        <div class="meta"><span>${summary.time.replace('T', ' ')} KST</span>
-          <a href="https://upbit.com/exchange?code=CRIX.UPBIT.${market}" target="_blank" rel="noopener">차트</a></div>
-      `;
-      return card;
-    }),
-  );
 }
 
-async function refresh() {
-  const { short, long } = settings.periods;
-  $('subtitle').textContent = `${settings.candleUnit}분봉 · MA${short} / MA${long} · 불러오는 중…`;
-
-  const rows = await Promise.all(
-    markets.map(async (market) => {
-      try {
-        const candles = await fetchCandles(market, settings.candleUnit, long + 2);
-        return { market, summary: summarize(candles, settings.periods) };
-      } catch (error) {
-        return { market, summary: null, error: error.message };
-      }
-    }),
-  );
-
-  renderCards(rows);
-  $('subtitle').textContent =
-    `${settings.candleUnit}분봉 · MA${short} / MA${long} · ${new Date().toLocaleTimeString('ko-KR')} 기준`;
+function selectTab(next) {
+  tab = next;
+  for (const button of document.querySelectorAll('.tab')) {
+    button.setAttribute('aria-selected', String(button.dataset.tab === next));
+  }
+  render();
 }
 
-function normalize(input) {
-  const value = input.trim().toUpperCase();
-  if (!value) return null;
+function addMarket() {
+  const input = $('market-input');
+  const value = input.value.trim().toUpperCase();
+  if (!value) return;
+
   const market = value.includes('-') ? value : `KRW-${value}`;
-  return allMarkets.length === 0 || allMarkets.includes(market) ? market : null;
+  if (allMarkets.length > 0 && !allMarkets.includes(market)) {
+    $('subtitle').textContent = '해당 마켓을 찾을 수 없습니다.';
+    return;
+  }
+  if (!markets.includes(market)) {
+    markets.push(market);
+    saveMarkets(markets);
+    renderChips();
+    render();
+  }
+  input.value = '';
 }
 
 async function init() {
@@ -165,47 +92,34 @@ async function init() {
       periods: { ...settings.periods, ...config.periods },
       proximityThresholdPct: config.alerts?.proximityThresholdPct ?? settings.proximityThresholdPct,
     };
-    markets = readStoredMarkets() ?? config.markets ?? [];
+    markets = loadMarkets() ?? config.markets ?? [];
   } catch {
-    markets = readStoredMarkets() ?? ['KRW-BTC'];
+    markets = loadMarkets() ?? ['KRW-BTC'];
   }
 
   try {
-    const list = await fetch(`${UPBIT}/market/all?isDetails=false`).then((r) => r.json());
-    allMarkets = list.filter((m) => m.market.startsWith('KRW-')).map((m) => m.market);
+    allMarkets = await fetchKrwMarkets();
     $('market-list').replaceChildren(
-      ...allMarkets.map((market) => Object.assign(document.createElement('option'), { value: market.replace('KRW-', '') })),
+      ...allMarkets.map((market) => el('option', { value: coinOf(market) })),
     );
   } catch {
-    /* 자동완성은 없어도 수동 입력으로 동작한다 */
+    /* 자동완성이 없어도 직접 입력으로 동작한다 */
   }
 
   renderChips();
-  await refresh();
-
-  const add = () => {
-    const market = normalize($('market-input').value);
-    if (!market) {
-      $('subtitle').textContent = '해당 마켓을 찾을 수 없습니다.';
-      return;
-    }
-    if (!markets.includes(market)) {
-      markets.push(market);
-      storeMarkets();
-      renderChips();
-      refresh();
-    }
-    $('market-input').value = '';
-  };
-
-  $('add').addEventListener('click', add);
+  for (const button of document.querySelectorAll('.tab')) {
+    button.addEventListener('click', () => selectTab(button.dataset.tab));
+  }
+  $('add').addEventListener('click', addMarket);
   $('market-input').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') add();
+    if (event.key === 'Enter') addMarket();
   });
-  $('refresh').addEventListener('click', refresh);
+  $('refresh').addEventListener('click', render);
+
+  await render();
 
   setInterval(() => {
-    if (document.visibilityState === 'visible') refresh();
+    if (document.visibilityState === 'visible' && tab === 'current') render();
   }, REFRESH_MS);
 }
 

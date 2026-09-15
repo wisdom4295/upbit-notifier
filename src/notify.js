@@ -3,6 +3,7 @@ import { fetchCandles } from './upbit.js';
 import { detectSignals, summarize } from './indicators.js';
 import { formatSignal, formatStatus, sendMessage } from './telegram.js';
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
+import { appendSignals } from './history.js';
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
@@ -86,7 +87,24 @@ async function main() {
     await sendMessage(formatStatus(results, { unit: config.candleUnit, ...config.periods }), telegram);
   }
 
-  if (!dryRun) await saveState(state);
+  if (!dryRun) {
+    // 회고 대시보드가 읽을 수 있도록 발생한 시그널을 월별 파일에 남긴다.
+    const added = await appendSignals(
+      signals.map((signal) => ({
+        ts: signal.candle.timeUtc,
+        kst: signal.candle.timeKst,
+        market: signal.market,
+        type: signal.type,
+        price: signal.candle.close,
+        short: signal.short,
+        long: signal.long,
+        gapPct: signal.gapPct,
+        unit: config.candleUnit,
+      })),
+    );
+    if (added > 0) console.log(`이력 ${added}건 기록`);
+    await saveState(state);
+  }
 
   for (const result of results) {
     const { market, summary, note } = result;

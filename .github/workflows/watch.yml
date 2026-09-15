@@ -55,17 +55,17 @@ jobs:
             echo "마지막 커밋 ${age_days}일 전 - 하트비트 기록"
           fi
 
-          if [ -z "$(git status --porcelain -- state.json .heartbeat)" ]; then
+          if [ -z "$(git status --porcelain -- state.json .heartbeat history)" ]; then
             echo "변경 없음 - 커밋 생략"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # 없는 파일을 git add 하면 실패하므로 존재하는 것만 담는다.
-          for file in state.json .heartbeat; do
+          for file in state.json .heartbeat history; do
             [ -e "$file" ] && git add -- "$file"
           done
-          git commit -m "chore: 알림 상태 갱신 [skip ci]"
+          git commit -m "chore: 알림 상태·이력 갱신 [skip ci]"
           # 다른 실행이 먼저 푸시했을 수 있으니 rebase 후 재시도
           for attempt in 1 2 3; do
             git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0

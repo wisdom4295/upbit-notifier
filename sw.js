@@ -1,6 +1,12 @@
 // 앱 셸만 캐싱한다. 시세는 항상 네트워크에서 새로 받아야 하므로 캐싱하지 않는다.
 const CACHE = 'upbit-notifier-v1';
-const SHELL = ['./', './index.html', './app.js', './src/indicators.js', './config.json', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const SHELL = [
+  './', './index.html', './app.js', './config.json', './manifest.webmanifest',
+  './src/indicators.js', './src/period.js', './src/portfolio.js',
+  './web/upbit.js', './web/store.js', './web/format.js',
+  './web/current.js', './web/review.js', './web/history-client.js',
+  './icons/icon-192.png', './icons/icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
