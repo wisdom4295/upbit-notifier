@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>업비트 이평선 감시</title>
+    <meta name="theme-color" content="#0b1120" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1120;
+        --card: #131c31;
+        --line: #1f2b45;
+        --text: #e5ecf9;
+        --muted: #8b9ac0;
+        --up: #34d399;
+        --down: #f87171;
+        --near: #fbbf24;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: env(safe-area-inset-top, 0) 16px calc(24px + env(safe-area-inset-bottom, 0));
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
+        max-width: 640px;
+        margin-inline: auto;
+      }
+      header { padding: 20px 0 12px; }
+      h1 { font-size: 19px; margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 16px 0; }
+      input, button {
+        font: inherit;
+        color: var(--text);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 12px;
+      }
+      input { flex: 1 1 160px; min-width: 0; }
+      button { cursor: pointer; }
+      button:hover { border-color: var(--muted); }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+      .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 999px; padding: 5px 8px 5px 12px; font-size: 13px;
+      }
+      .chip button { background: none; border: none; padding: 0 2px; color: var(--muted); line-height: 1; }
+      .card {
+        background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+        padding: 14px 16px; margin-bottom: 10px;
+      }
+      .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+      .coin { font-weight: 700; font-size: 17px; }
+      .price { font-variant-numeric: tabular-nums; }
+      .gap { font-weight: 700; font-variant-numeric: tabular-nums; }
+      .gap.up { color: var(--up); } .gap.down { color: var(--down); } .gap.near { color: var(--near); }
+      .meta { color: var(--muted); font-size: 13px; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+      .bar { height: 4px; background: var(--line); border-radius: 999px; margin-top: 10px; position: relative; overflow: hidden; }
+      .bar span { position: absolute; inset-block: 0; background: currentColor; border-radius: 999px; }
+      .empty, .error { color: var(--muted); padding: 24px 0; text-align: center; }
+      .error { color: var(--down); }
+      footer { color: var(--muted); font-size: 12px; text-align: center; padding-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>업비트 이평선 감시</h1>
+      <p class="sub" id="subtitle">불러오는 중…</p>
+    </header>
+
+    <div class="toolbar">
+      <input id="market-input" list="market-list" placeholder="코인 추가 (예: BTC, KRW-DOGE)" autocomplete="off" />
+      <datalist id="market-list"></datalist>
+      <button id="add">추가</button>
+      <button id="refresh">새로고침</button>
+    </div>
+
+    <div class="chips" id="chips"></div>
+    <main id="cards"><p class="empty">불러오는 중…</p></main>
+    <footer>알림은 텔레그램으로 전송됩니다 · 이 화면은 현재 상태 확인용</footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

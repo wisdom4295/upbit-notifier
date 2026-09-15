@@ -1,0 +1,62 @@
+name: Upbit MA Watch
+
+on:
+  schedule:
+    # 15분마다 실행. GitHub Actions 스케줄은 혼잡하면 몇 분 늦게 돌 수 있어
+    # lookbackCandles만큼 과거 캔들을 다시 훑어 누락을 보완한다.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '실행 모드'
+        type: choice
+        default: signals
+        options: [signals, status, dry-run]
+
+# 상태 파일(state.json) 커밋이 겹치지 않도록 동시에 한 번만 실행
+concurrency:
+  group: upbit-ma-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 시그널 확인 및 알림
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MODE: ${{ inputs.mode || 'signals' }}
+        run: |
+          case "$MODE" in
+            status)  node src/notify.js --status ;;
+            dry-run) node src/notify.js --dry-run ;;
+            *)       node src/notify.js ;;
+          esac
+
+      - name: 알림 상태 저장
+        if: ${{ inputs.mode != 'dry-run' }}
+        run: |
+          if [ -z "$(git status --porcelain state.json)" ]; then
+            echo "변경 없음 - 커밋 생략"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git commit -m "chore: 알림 상태 갱신 [skip ci]"
+          # 다른 실행이 먼저 푸시했을 수 있으니 rebase 후 재시도
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0
+            sleep $((attempt * 3))
+          done
+          echo "상태 저장 실패 (다음 실행에서 복구됨)"

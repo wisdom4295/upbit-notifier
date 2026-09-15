@@ -1,0 +1,16 @@
+{
+  "name": "upbit-notifier",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Upbit 15m candle SMA50/SMA200 cross & proximity alerts via Telegram",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node src/notify.js",
+    "check:dry": "node src/notify.js --dry-run",
+    "chat-id": "node src/get-chat-id.js",
+    "test": "node --test test/*.test.js"
+  }
+}

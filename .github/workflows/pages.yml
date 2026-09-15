@@ -1,0 +1,32 @@
+name: Deploy PWA
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['state.json', 'README.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      # PWA가 src/indicators.js와 config.json을 그대로 참조하므로 레포 루트를 통째로 배포한다.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
