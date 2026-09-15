@@ -233,8 +233,11 @@ help - 명령 목록
 
 | 언제 | 무엇 |
 | --- | --- |
-| **매일 밤 10시** (KST) | 오늘 온 알림과 그 뒤 가격 변화 |
-| **일요일 밤 10시 5분** | 이번 주(월~일) 같은 내용 |
+| **매일 밤 10시** 이후 첫 실행 | 오늘 온 알림과 그 뒤 가격 변화 |
+| **일요일 밤 10시** 이후 첫 실행 | 이번 주(월~일) 같은 내용 |
+
+리포트는 cron에 맡기지 않고 **실행될 때마다 "보낼 때가 됐는지" 스스로 확인**합니다.
+실행이 몇 시간 건너뛰어도 그날 것은 늦게라도 한 번은 갑니다. 같은 날 두 번 보내지는 않습니다.
 
 ```
 📅 오늘 알림 정리
@@ -257,6 +260,31 @@ help - 명령 목록
 이 숫자가 쌓이면 "이 조건이 나한테 맞나"를 감이 아니라 기록으로 판단할 수 있습니다.
 
 지금 바로 보고 싶으면 **Actions → Upbit MA Watch → Run workflow → mode: `daily`** (또는 `weekly`)
+
+---
+
+## 실행 주기 — 읽고 넘어가세요
+
+`.github/workflows/watch.yml`에 5분 cron이 있지만, **GitHub은 이 스케줄을 보장하지 않습니다.**
+무료 러너에서 잦은 cron은 뒤로 밀리거나 통째로 건너뜁니다. 실제로 측정해 보면 몇 시간 간격으로
+한 번씩만 도는 경우가 흔합니다.
+
+알림을 제때 받으려면 **밖에서 정확한 주기로 깨워야** 합니다. 그래서 워크플로에
+`repository_dispatch: types: [tick]` 입구를 열어 뒀습니다.
+
+무료 cron 서비스(cron-job.org 등)에서 5분마다 아래를 호출하면 됩니다.
+
+```
+POST https://api.github.com/repos/<계정>/<레포>/dispatches
+Authorization: Bearer <토큰>
+Accept: application/vnd.github+json
+본문: {"event_type":"tick"}
+```
+
+토큰은 GitHub **Settings → Developer settings → Personal access tokens → Fine-grained**에서
+이 레포에만, **Actions: Read and write** 권한만 주어 발급하세요.
+
+> 잘 돌고 있는지는 **Actions 탭의 실행 간격**으로 확인하면 됩니다. 5분 간격으로 줄줄이 찍히면 정상입니다.
 
 ---
 

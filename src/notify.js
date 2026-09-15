@@ -5,6 +5,8 @@ import { formatSignal, formatStatus, sendMessage, fetchUpdates } from './telegra
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
 import { appendSignals } from './history.js';
 import { parseCommand, applyCommand } from './commands.js';
+import { dueReports, markReportSent } from './schedule.js';
+import { buildReport } from './report.js';
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
@@ -161,8 +163,24 @@ async function main() {
     await sendMessage(formatStatus(results, { unit: config.candleUnit, ...config.periods }), telegram);
   }
 
+  // 밤 10시 리포트를 GitHub 스케줄에 맡기면 건너뛸 때 같이 사라진다.
+  // 실행될 때마다 보낼 때가 됐는지 스스로 확인해, 늦더라도 하루 한 번은 보낸다.
+  if (!dryRun && !statusOnly) {
+    for (const period of dueReports(state)) {
+      try {
+        const { text, signals: reported } = await buildReport(period, config);
+        await sendMessage(text, telegram);
+        markReportSent(state, period);
+        console.log(`${period} 리포트 전송 (신호 ${reported.length}건)`);
+      } catch (error) {
+        // 리포트가 실패해도 알림 기능 자체는 멀쩡해야 한다.
+        console.error(`${period} 리포트 실패:`, error.message);
+      }
+    }
+  }
+
   if (!dryRun) {
-    // 회고 대시보드가 읽을 수 있도록 발생한 시그널을 월별 파일에 남긴다.
+    // 회고 리포트가 읽을 수 있도록 발생한 시그널을 월별 파일에 남긴다.
     // 여기서 실패해도 상태 저장까지 막으면 같은 알림이 매 실행마다 다시 나간다.
     // 이력이 한 건 빠지는 것보다 중복 알림이 훨씬 나쁘므로 따로 처리한다.
     try {

@@ -10,6 +10,9 @@ on:
     - cron: '0 13 * * *'
     # 일요일 밤 10시 5분(KST) 주간 정리. 위 일일 리포트와 겹치지 않게 5분 밀었다.
     - cron: '5 13 * * 0'
+  # GitHub의 cron은 몇 시간씩 건너뛴다. 밖에서 정확한 주기로 깨울 수 있게 열어 둔다.
+  repository_dispatch:
+    types: [tick]
   workflow_dispatch:
     inputs:
       mode:
