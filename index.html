@@ -61,7 +61,16 @@
       .bar { height: 4px; background: var(--line); border-radius: 999px; margin-top: 10px; position: relative; overflow: hidden; }
       .bar span { position: absolute; inset-block: 0; background: currentColor; border-radius: 999px; }
 
-      .range { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+      .range { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+      .legend {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;
+      }
+      .legend summary { cursor: pointer; color: var(--muted); }
+      .legend[open] summary { margin-bottom: 8px; color: var(--text); }
+      .legend ul { margin: 0; padding-left: 18px; }
+      .legend li { margin: 4px 0; }
+      .legend p { color: var(--muted); margin: 10px 0 2px; }
       .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
       .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
       .tile-label { display: block; color: var(--muted); font-size: 12px; }

@@ -2,6 +2,25 @@ import { byType, byMarket, overview, HORIZONS } from '../src/review-stats.js';
 import { loadSignals, attachPerformance } from './history-client.js';
 import { el, krw, signed, tone, coinOf, SIGNAL_LABEL, shortTime } from './format.js';
 
+/**
+ * 세 알림이 각각 무슨 뜻인지 화면에서 바로 알 수 있게 한다.
+ * 라벨만 보면 "무엇이" 오르내리는 것인지 드러나지 않기 때문이다.
+ */
+function legend({ short, long, proximityThresholdPct }) {
+  return el('details', { class: 'legend' }, [
+    el('summary', { text: `신호가 무슨 뜻인가요? (단기선 ${short}봉 / 장기선 ${long}봉 평균)` }),
+    el('ul', {}, [
+      el('li', { text: '🟢 상승 전환 — 단기선이 장기선을 아래에서 위로 통과' }),
+      el('li', { text: '🔴 하락 전환 — 단기선이 장기선을 위에서 아래로 통과' }),
+      el('li', { text: `🟡 교차 임박 — 두 선 차이가 ${proximityThresholdPct}% 이내로 좁혀짐 (아직 교차 전)` }),
+    ]),
+    el('p', {
+      text: '움직이는 쪽은 단기선입니다. 봉 수가 적어 최근 가격에 먼저 반응합니다. '
+        + '이동평균은 지나간 가격의 평균이라 신호는 항상 한 박자 늦습니다 — 예측이 아니라 사실 기록입니다.',
+    }),
+  ]);
+}
+
 function tile(label, value, toneClass = '') {
   return el('div', { class: 'tile' }, [
     el('span', { class: 'tile-label', text: label }),
@@ -90,6 +109,7 @@ export async function renderReview(root, { range, settings }) {
   if (signals.length === 0) {
     root.replaceChildren(
       el('p', { class: 'range', text: range.label }),
+      legend(settings),
       el('p', { class: 'empty', text: '이 기간에 발생한 신호가 없습니다.' }),
       el('p', {
         class: 'note',
@@ -103,6 +123,7 @@ export async function renderReview(root, { range, settings }) {
 
   root.replaceChildren(
     el('p', { class: 'range', text: range.label }),
+    legend(settings),
 
     el('div', { class: 'tiles' }, [
       tile('신호', `${summary.total}건`),
