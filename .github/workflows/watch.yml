@@ -2,9 +2,10 @@ name: Upbit MA Watch
 
 on:
   schedule:
-    # 15분마다 실행. GitHub Actions 스케줄은 혼잡하면 몇 분 늦게 돌 수 있어
-    # lookbackCandles만큼 과거 캔들을 다시 훑어 누락을 보완한다.
-    - cron: '*/15 * * * *'
+    # 5분마다 실행(GitHub cron 최소 간격). 매시 정각은 Actions가 가장 혼잡해
+    # 스케줄이 밀리므로 2분씩 밀어 :02, :07, :12 ... 에 돈다.
+    # 그래도 몇 분 늦을 수 있어 lookbackCandles만큼 과거 캔들을 다시 훑는다.
+    - cron: '2-59/5 * * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -46,13 +47,24 @@ jobs:
       - name: 알림 상태 저장
         if: ${{ inputs.mode != 'dry-run' }}
         run: |
-          if [ -z "$(git status --porcelain state.json)" ]; then
+          # public 레포의 스케줄 워크플로는 레포 활동이 60일간 없으면 자동 비활성화된다.
+          # 알림이 뜸한 기간에도 꺼지지 않도록 45일이 지나면 하트비트를 남긴다.
+          age_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          if [ "$age_days" -ge 45 ]; then
+            date -u +%FT%TZ > .heartbeat
+            echo "마지막 커밋 ${age_days}일 전 - 하트비트 기록"
+          fi
+
+          if [ -z "$(git status --porcelain -- state.json .heartbeat)" ]; then
             echo "변경 없음 - 커밋 생략"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state.json
+          # 없는 파일을 git add 하면 실패하므로 존재하는 것만 담는다.
+          for file in state.json .heartbeat; do
+            [ -e "$file" ] && git add -- "$file"
+          done
           git commit -m "chore: 알림 상태 갱신 [skip ci]"
           # 다른 실행이 먼저 푸시했을 수 있으니 rebase 후 재시도
           for attempt in 1 2 3; do
