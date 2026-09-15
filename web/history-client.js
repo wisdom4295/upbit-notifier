@@ -1,5 +1,5 @@
 import { returnAfter } from '../src/period.js';
-import { fetchCandles } from './upbit.js';
+import { getCandles } from './upbit.js';
 
 const MAX_CANDLES = 1000; // 성과 계산용 시세는 넉넉하되 호출이 과하지 않게 제한
 
@@ -57,18 +57,19 @@ export async function attachPerformance(signals, defaultUnit) {
     entry.oldest = Math.min(entry.oldest, ms);
   }
 
+  // 한 줄로 세워 받는다. 동시에 부르면 업비트가 호출 한도로 거부한다.
   const series = new Map();
-  await Promise.all(
-    [...byMarket].map(async ([market, { oldest, unit }]) => {
+  for (const [market, { oldest, unit }] of byMarket) {
+    await (async () => {
       const spanMs = Date.now() - oldest;
       const count = Math.min(MAX_CANDLES, Math.ceil(spanMs / (unit * 60_000)) + 5);
       try {
-        series.set(market, await fetchCandles(market, unit, Math.max(count, 10)));
+        series.set(market, await getCandles(market, unit, Math.max(count, 10)));
       } catch {
         series.set(market, []); // 조회 실패해도 이력 자체는 보여 준다
       }
-    }),
-  );
+    })();
+  }
 
   return signals.map((signal) => {
     const candles = series.get(signal.market) ?? [];
