@@ -26,12 +26,17 @@ for (const update of body.result) {
 }
 
 if (chats.size === 0) {
-  console.log('받은 메시지가 없습니다. 텔레그램에서 봇에게 아무 메시지나 보낸 뒤 다시 실행하세요.');
+  console.log('받은 메시지가 없습니다.');
+  console.log('  · 개인 알림: 봇과의 대화방에서 아무 메시지나 보내세요.');
+  console.log('  · 단체 알림: 그룹에 봇을 넣고 그룹에서 /start@봇아이디 를 보내세요.');
+  console.log('    (봇은 그룹의 일반 대화는 못 보고 / 로 시작하는 명령만 받습니다.)');
   process.exit(0);
 }
 
 console.log('찾은 chat_id:');
 for (const chat of chats.values()) {
   const name = chat.title ?? [chat.first_name, chat.last_name].filter(Boolean).join(' ');
-  console.log(`  ${chat.id}  (${chat.type}${name ? `, ${name}` : ''})`);
+  const kind = chat.type === 'private' ? '개인' : '단체방';
+  console.log(`  ${chat.id}\t${kind}${name ? ` · ${name}` : ''}`);
 }
+console.log('\n이 숫자를 TELEGRAM_CHAT_ID 시크릿에 넣으세요. 단체방은 앞의 - 까지 전부 포함합니다.');

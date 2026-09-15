@@ -12,7 +12,7 @@ on:
         description: '실행 모드'
         type: choice
         default: signals
-        options: [signals, status, dry-run]
+        options: [signals, status, dry-run, chat-ids]
 
 # 상태 파일(state.json) 커밋이 겹치지 않도록 동시에 한 번만 실행
 concurrency:
@@ -39,13 +39,14 @@ jobs:
           MODE: ${{ inputs.mode || 'signals' }}
         run: |
           case "$MODE" in
-            status)  node src/notify.js --status ;;
-            dry-run) node src/notify.js --dry-run ;;
-            *)       node src/notify.js ;;
+            status)   node src/notify.js --status ;;
+            dry-run)  node src/notify.js --dry-run ;;
+            chat-ids) node src/get-chat-id.js ;;
+            *)        node src/notify.js ;;
           esac
 
       - name: 알림 상태 저장
-        if: ${{ inputs.mode != 'dry-run' }}
+        if: ${{ inputs.mode != 'dry-run' && inputs.mode != 'chat-ids' }}
         run: |
           # public 레포의 스케줄 워크플로는 레포 활동이 60일간 없으면 자동 비활성화된다.
           # 알림이 뜸한 기간에도 꺼지지 않도록 45일이 지나면 하트비트를 남긴다.
