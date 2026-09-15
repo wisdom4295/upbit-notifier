@@ -21,7 +21,12 @@ export const tone = (value) => {
 
 export const coinOf = (market) => market.replace('KRW-', '');
 
-export const SIGNAL_LABEL = { golden: '🟢 골든', dead: '🔴 데드', proximity: '🟡 근접' };
+// 차트 용어 대신 무슨 일이 일어났는지로 표기한다.
+export const SIGNAL_LABEL = {
+  golden: '🟢 상승 전환',
+  dead: '🔴 하락 전환',
+  proximity: '🟡 교차 임박',
+};
 
 /** '2026-09-15T14:30:00' → '09-15 14:30' */
 export const shortTime = (kst) => kst.slice(5, 16).replace('T', ' ');

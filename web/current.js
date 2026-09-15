@@ -34,7 +34,7 @@ export async function renderCurrent(root, { markets, settings }) {
       if (!summary) {
         return el('article', { class: 'card' }, [
           el('div', { class: 'row' }, [el('span', { class: 'coin', text: coin })]),
-          el('div', { class: 'meta', text: error ?? `캔들 부족 (MA${long} 계산 불가)` }),
+          el('div', { class: 'meta', text: error ?? `캔들이 부족해 장기선(${long}봉)을 계산할 수 없습니다` }),
         ]);
       }
 
@@ -51,7 +51,7 @@ export async function renderCurrent(root, { markets, settings }) {
           el('span', {
             class: 'meta',
             style: 'margin:0',
-            text: `MA${short} ${krw(summary.short)} · MA${long} ${krw(summary.long)}`,
+            text: `단기선 ${krw(summary.short)} · 장기선 ${krw(summary.long)}`,
           }),
           el('span', {
             class: `gap ${toneClass}`,

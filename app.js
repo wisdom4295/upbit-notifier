@@ -36,7 +36,7 @@ function renderChips() {
 
 async function render() {
   const { short, long } = settings.periods;
-  $('subtitle').textContent = `${settings.candleUnit}분봉 · MA${short} / MA${long}`;
+  $('subtitle').textContent = `${settings.candleUnit}분봉 · 단기선 ${short}봉 / 장기선 ${long}봉`;
   $('tab-current').hidden = tab !== 'current';
   $('tab-review').hidden = tab === 'current';
   // 감시 목록 편집은 '현재' 탭의 일이라 회고 탭에서는 감춰 화면을 비운다.

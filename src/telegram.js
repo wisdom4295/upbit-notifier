@@ -29,10 +29,11 @@ export async function sendMessage(text, { token, chatId, dryRun = false } = {}) 
   }
 }
 
-const TITLES = {
-  golden: '🟢 골든크로스',
-  dead: '🔴 데드크로스',
-  proximity: '🟡 이평선 근접',
+// 차트 용어(골든크로스·이격 등) 대신 무슨 일이 일어났는지 풀어서 쓴다.
+const SIGNALS = {
+  golden: { title: '🟢 상승 전환', detail: '단기선이 장기선을 위로 통과했습니다.' },
+  dead: { title: '🔴 하락 전환', detail: '단기선이 장기선을 아래로 통과했습니다.' },
+  proximity: { title: '🟡 교차 임박', detail: '두 선이 가까워졌습니다. 곧 교차할 수 있습니다.' },
 };
 
 const krw = (value) =>
@@ -44,16 +45,18 @@ const krw = (value) =>
 export function formatSignal(signal, { market, unit, short, long }) {
   const coin = market.split('-')[1];
   const chartUrl = `https://upbit.com/exchange?code=CRIX.UPBIT.${market}`;
-  const direction = signal.gapPct >= 0 ? '위' : '아래';
+  const { title, detail } = SIGNALS[signal.type] ?? { title: signal.type, detail: '' };
+  const side = signal.gapPct >= 0 ? '단기선이 장기선 위' : '단기선이 장기선 아래';
 
   return [
-    `${TITLES[signal.type]} · <b>${escapeHtml(coin)}</b> (${unit}분봉)`,
+    `${title} · <b>${escapeHtml(coin)}</b> (${unit}분봉)`,
+    detail,
     '',
-    `종가: <b>${krw(signal.candle.close)}</b>`,
-    `MA${short}: ${krw(signal.short)}`,
-    `MA${long}: ${krw(signal.long)}`,
-    `이격: <b>${signal.gapPct.toFixed(3)}%</b> (MA${short}이 MA${long} ${direction})`,
-    `캔들: ${escapeHtml(signal.candle.timeKst.replace('T', ' '))} KST`,
+    `현재가: <b>${krw(signal.candle.close)}</b>`,
+    `단기선(${short}봉 평균): ${krw(signal.short)}`,
+    `장기선(${long}봉 평균): ${krw(signal.long)}`,
+    `두 선 차이: <b>${signal.gapPct.toFixed(3)}%</b> — ${side}`,
+    `기준 캔들: ${escapeHtml(signal.candle.timeKst.replace('T', ' '))} KST`,
     '',
     `<a href="${chartUrl}">업비트에서 보기</a>`,
   ].join('\n');
@@ -65,8 +68,12 @@ export function formatStatus(summaries, { unit, short, long }) {
     const coin = market.split('-')[1];
     if (!summary) return `• ${escapeHtml(coin)}: 캔들 데이터 부족`;
     const side = summary.gapPct >= 0 ? '▲' : '▼';
-    return `• <b>${escapeHtml(coin)}</b> ${krw(summary.price)} · 이격 ${side} ${summary.gapPct.toFixed(3)}%`;
+    return `• <b>${escapeHtml(coin)}</b> ${krw(summary.price)} · 두 선 차이 ${side} ${summary.gapPct.toFixed(3)}%`;
   });
 
-  return [`📊 현재 상태 (${unit}분봉 MA${short}/MA${long})`, '', ...lines].join('\n');
+  return [
+    `📊 현재 상태 (${unit}분봉 · 단기선 ${short}봉 / 장기선 ${long}봉)`,
+    '',
+    ...lines,
+  ].join('\n');
 }

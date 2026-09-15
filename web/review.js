@@ -106,7 +106,7 @@ export async function renderReview(root, { range, settings }) {
 
     el('div', { class: 'tiles' }, [
       tile('신호', `${summary.total}건`),
-      tile('골든 / 데드 / 근접',
+      tile('상승 / 하락 / 임박',
         `${summary.counts.golden} / ${summary.counts.dead} / ${summary.counts.proximity}`),
       tile('신호 후 1h 평균', signed(summary.returns[1], 2, '%'), tone(summary.returns[1])),
       tile('신호 후 24h 평균', signed(summary.returns[24], 2, '%'), tone(summary.returns[24])),
@@ -115,7 +115,7 @@ export async function renderReview(root, { range, settings }) {
     el('h2', { text: '신호 이력' }),
     signalTable(signals),
 
-    el('h2', { text: '신호별 성과' }),
+    el('h2', { text: '신호 종류별 성과' }),
     statsTable('신호', byType(signals), (row) => SIGNAL_LABEL[row.type] ?? row.type),
 
     el('h2', { text: '코인별 성과' }),
