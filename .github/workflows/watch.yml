@@ -6,13 +6,17 @@ on:
     # 스케줄이 밀리므로 2분씩 밀어 :02, :07, :12 ... 에 돈다.
     # 그래도 몇 분 늦을 수 있어 lookbackCandles만큼 과거 캔들을 다시 훑는다.
     - cron: '2-59/5 * * * *'
+    # 매일 밤 10시(KST) 오늘 정리 — UTC로는 13시
+    - cron: '0 13 * * *'
+    # 일요일 밤 10시 5분(KST) 주간 정리. 위 일일 리포트와 겹치지 않게 5분 밀었다.
+    - cron: '5 13 * * 0'
   workflow_dispatch:
     inputs:
       mode:
         description: '실행 모드'
         type: choice
         default: signals
-        options: [signals, status, dry-run, chat-ids]
+        options: [signals, status, dry-run, chat-ids, daily, weekly]
 
 # 상태 파일(state.json) 커밋이 겹치지 않도록 동시에 한 번만 실행
 concurrency:
@@ -32,21 +36,39 @@ jobs:
         with:
           node-version: '20'
 
+      - name: 실행할 일 정하기
+        id: mode
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          MANUAL: ${{ inputs.mode }}
+        run: |
+          # 어느 스케줄이 깨웠는지로 할 일을 가른다. 손으로 돌릴 때는 고른 값을 따른다.
+          case "$SCHEDULE" in
+            '0 13 * * *') MODE=daily ;;
+            '5 13 * * 0') MODE=weekly ;;
+            *)            MODE=signals ;;
+          esac
+          [ -n "$MANUAL" ] && MODE="$MANUAL"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "이번 실행: $MODE"
+
       - name: 시그널 확인 및 알림
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          MODE: ${{ inputs.mode || 'signals' }}
+          MODE: ${{ steps.mode.outputs.mode }}
         run: |
           case "$MODE" in
             status)   node src/notify.js --status ;;
             dry-run)  node src/notify.js --dry-run ;;
             chat-ids) node src/get-chat-id.js ;;
+            daily)    node src/send-report.js daily ;;
+            weekly)   node src/send-report.js weekly ;;
             *)        node src/notify.js ;;
           esac
 
       - name: 알림 상태 저장
-        if: ${{ inputs.mode != 'dry-run' && inputs.mode != 'chat-ids' }}
+        if: ${{ steps.mode.outputs.mode == 'signals' || steps.mode.outputs.mode == 'status' }}
         run: |
           # public 레포의 스케줄 워크플로는 레포 활동이 60일간 없으면 자동 비활성화된다.
           # 알림이 뜸한 기간에도 꺼지지 않도록 45일이 지나면 하트비트를 남긴다.

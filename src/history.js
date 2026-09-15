@@ -55,6 +55,34 @@ export async function appendSignals(records, dir = DIR) {
   return added;
 }
 
+/** 기간이 걸쳐 있는 달 목록 ('2026-08', '2026-09' …) */
+function monthsInRange(from, to) {
+  const months = new Set([from.slice(0, 7)]);
+  const end = to.slice(0, 7);
+  let cursor = from.slice(0, 7);
+  while (cursor < end) {
+    const [year, month] = cursor.split('-').map(Number);
+    cursor = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
+    months.add(cursor);
+  }
+  return [...months];
+}
+
+/**
+ * 기간(KST) 안에 발생한 신호를 오래된 순으로 읽는다.
+ * 파일이 없으면 그 기간에 알림이 없었다는 뜻이므로 빈 배열이다.
+ */
+export async function readSignals({ from, to }, dir = DIR) {
+  const pages = await Promise.all(
+    monthsInRange(from, to).map((month) => readJson(join(dir, `${month}.json`), [])),
+  );
+
+  return pages
+    .flat()
+    .filter((record) => record.kst >= from && record.kst < to)
+    .sort((a, b) => a.kst.localeCompare(b.kst));
+}
+
 /** history 폴더를 훑어 사용 가능한 달 목록을 index.json으로 남긴다. */
 export async function writeIndex(dir = DIR) {
   const files = await readdir(dir).catch(() => []);
