@@ -1,0 +1,20 @@
+{
+  "markets": {
+    "KRW-BTC": {
+      "lastCheckedUtc": "2026-09-15T12:15:00",
+      "lastSignalUtc": {}
+    },
+    "KRW-ETH": {
+      "lastCheckedUtc": "2026-09-15T12:15:00",
+      "lastSignalUtc": {}
+    },
+    "KRW-XRP": {
+      "lastCheckedUtc": "2026-09-15T12:15:00",
+      "lastSignalUtc": {}
+    },
+    "KRW-SOL": {
+      "lastCheckedUtc": "2026-09-15T12:15:00",
+      "lastSignalUtc": {}
+    }
+  }
+}
