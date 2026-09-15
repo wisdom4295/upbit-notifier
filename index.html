@@ -34,35 +34,40 @@
         font: inherit; font-size: 14px;
       }
       .tab[aria-selected='true'] { color: var(--text); border-color: var(--muted); font-weight: 600; }
-      .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-      input, button {
-        font: inherit; color: var(--text); background: var(--card);
-        border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
-      }
-      input { min-width: 0; }
-      #market-input { flex: 1 1 160px; }
       button { cursor: pointer; }
       button:hover { border-color: var(--muted); }
-      button.link { background: none; border: none; color: var(--muted); padding: 2px 6px; }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; align-items: center; }
-      .chip {
-        display: inline-flex; align-items: center; gap: 4px;
+      .watchlist {
+        margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6;
+      }
+      .watchlist-names { color: var(--text); }
+      .watchlist a { color: var(--text); }
+
+      .signal-list { display: grid; gap: 8px; }
+      .signal {
         background: var(--card); border: 1px solid var(--line);
-        border-radius: 999px; padding: 5px 8px 5px 12px; font-size: 13px;
+        border-radius: 12px; padding: 12px 14px;
       }
-      .chip button { background: none; border: none; padding: 0 2px; color: var(--muted); line-height: 1; cursor: pointer; }
-      .chip.alerting { border-color: #2b3f63; }
-      .chip-tag {
-        font-size: 11px; color: var(--muted); background: var(--bg);
-        border-radius: 999px; padding: 1px 7px;
+      .signal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+      .signal-name { font-weight: 600; }
+      .signal-coin { font-weight: 700; font-size: 15px; }
+      .signal-meta { margin: 4px 0 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+      .after { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+      .after-cell {
+        background: var(--bg); border-radius: 8px; padding: 6px 8px; text-align: center;
       }
-      .chip.alerting .chip-tag { color: var(--up); }
-      .chips-note {
-        flex: 1 0 100%; margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6;
+      .after-label { display: block; color: var(--muted); font-size: 11px; }
+      .after-value { display: block; font-size: 14px; margin-top: 1px; font-variant-numeric: tabular-nums; }
+      .more {
+        width: 100%; margin-top: 8px; padding: 10px;
+        background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+        color: var(--text); font: inherit; cursor: pointer;
       }
-      .chips-note strong { color: var(--up); }
-      .chips-note a, .chips-note code { color: var(--text); }
-      .chips-note button.link { font-size: 12px; text-decoration: underline; }
+      .more:hover { border-color: var(--muted); }
+      button:focus-visible, summary:focus-visible, a:focus-visible, .tab:focus-visible {
+        outline: 2px solid var(--near); outline-offset: 2px;
+      }
+      .note.tight { padding: 8px 0 0; }
+
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
       .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
       .coin { font-weight: 700; font-size: 17px; }
@@ -88,18 +93,14 @@
       .tile-label { display: block; color: var(--muted); font-size: 12px; }
       .tile-value { display: block; font-size: 17px; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
-      .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
-      th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); }
-      th { color: var(--muted); font-weight: 600; }
-      td.num, th.num { text-align: right; }
-      td.strong { font-weight: 700; }
-      .scroll-hint { display: none; color: var(--muted); font-size: 12px; margin: 6px 2px 0; }
-      @media (max-width: 620px) { .scroll-hint { display: block; } }
 
       .empty, .error, .note { color: var(--muted); font-size: 13px; padding: 14px 0; }
       .empty { text-align: center; }
       .error { color: var(--down); }
+      @media (min-width: 620px) {
+        #cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        #cards .card { margin-bottom: 0; }
+      }
       footer { color: var(--muted); font-size: 12px; text-align: center; padding-top: 20px; }
     </style>
   </head>
@@ -110,20 +111,12 @@
     </header>
 
     <div class="tabs" role="tablist">
-      <button class="tab" data-tab="current" role="tab" aria-selected="true">현재</button>
-      <button class="tab" data-tab="today" role="tab" aria-selected="false">오늘</button>
-      <button class="tab" data-tab="week" role="tab" aria-selected="false">이번 주</button>
+      <button class="tab" data-tab="current" role="tab" aria-selected="true">시세 현황</button>
+      <button class="tab" data-tab="today" role="tab" aria-selected="false">오늘 알림</button>
+      <button class="tab" data-tab="week" role="tab" aria-selected="false">이번 주 알림</button>
     </div>
 
-    <div id="watchlist">
-    <div class="toolbar">
-      <input id="market-input" list="market-list" placeholder="코인 추가 (예: BTC)" autocomplete="off" />
-      <button id="add">추가</button>
-      <button id="refresh">새로고침</button>
-    </div>
-    <div class="chips" id="chips"></div>
-    </div>
-    <datalist id="market-list"></datalist>
+    <p id="watchlist" class="watchlist">불러오는 중…</p>
 
     <main>
       <section id="tab-current"><div id="cards"></div></section>

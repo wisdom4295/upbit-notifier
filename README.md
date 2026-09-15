@@ -70,14 +70,12 @@ TELEGRAM_BOT_TOKEN=붙여넣기 npm run chat-id
 ```
 
 코인 코드는 업비트 표기 그대로 `KRW-` + 심볼입니다. (도지 → `KRW-DOGE`, 리플 → `KRW-XRP`)
-전체 목록은 [업비트 마켓 목록](https://api.upbit.com/v1/market/all?isDetails=false)에서 확인할 수 있고,
-대시보드 "코인 추가" 칸에서도 자동완성으로 찾을 수 있습니다.
+전체 목록은 [업비트 마켓 목록](https://api.upbit.com/v1/market/all?isDetails=false)에서 확인할 수 있습니다.
 
 커밋하면 **다음 실행(최대 5분)부터 바로 반영**됩니다. 따로 할 일은 없습니다.
 
-> **대시보드에서 추가한 코인은 알림이 오지 않습니다.** 화면의 "코인 추가"는 이 브라우저에서 잠깐 보기 위한
-> 기능입니다. 그래서 칩에 `알림`(초록)과 `보기만`(회색)을 표시해 뒀습니다. 알림까지 받으려면 위처럼
-> `config.json`을 고쳐야 합니다.
+> 대시보드는 이 목록을 그대로 보여 주기만 합니다. 화면에서 코인을 더하거나 뺄 수는 없습니다 —
+> 알림 목록과 화면 목록이 달라지면 "왜 알림이 안 오지?" 하고 헤매게 되기 때문입니다.
 
 ## 그 밖의 설정
 
@@ -202,9 +200,9 @@ src/telegram.js             메시지 포맷·전송
 src/history.js              신호 이력 기록 (월별 파일 + index.json)
 src/period.js               KST 기준 오늘/이번 주 범위, 신호 후 성과 계산
 src/labels.js               알림·화면에 쓰는 신호 이름 (설정한 기간 숫자로 생성)
-src/review-stats.js         신호별·코인별 성과 집계
+src/review-stats.js         신호 종류별 성과 집계
 src/get-chat-id.js          chat_id 확인용 1회성 스크립트
 index.html, app.js, sw.js   PWA 껍데기
-web/                        대시보드 화면 (현재 / 회고)
+web/                        대시보드 화면 (시세 현황 / 알림 회고)
 .github/workflows/          watch(5분 cron) · test · pages
 ```

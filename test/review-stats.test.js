@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { byType, byMarket, overview } from '../src/review-stats.js';
+import { byType, overview } from '../src/review-stats.js';
 
 const signal = (type, market, r1, r4, r24) => ({
   type, market, returns: { 1: r1, 4: r4, 24: r24 },
@@ -39,13 +39,7 @@ test('건수가 0인 종류는 빼고 보여 준다', () => {
   assert.equal(byType(sample).some((row) => row.type === 'proximity'), false);
 });
 
-test('코인별 집계는 건수 많은 순으로 정렬한다', () => {
-  const rows = byMarket(sample);
-  assert.deepEqual(rows.map((r) => [r.market, r.count]), [['KRW-BTC', 2], ['KRW-ETH', 1]]);
-});
-
 test('신호가 없으면 빈 집계', () => {
   assert.deepEqual(byType([]), []);
-  assert.deepEqual(byMarket([]), []);
   assert.equal(overview([]).total, 0);
 });

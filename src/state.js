@@ -9,7 +9,10 @@ export async function loadState(path = 'state.json') {
     return { ...EMPTY, ...parsed, markets: parsed.markets ?? {} };
   } catch (error) {
     if (error.code === 'ENOENT') return structuredClone(EMPTY); // 최초 실행
-    throw error;
+    // 깨진 상태 파일 때문에 알림이 영영 멈추면 안 된다. 한 번은 중복이 날 수 있어도
+    // 빈 상태로 다시 시작하는 편이 낫다.
+    console.warn(`${path}를 읽을 수 없어 초기화합니다: ${error.message}`);
+    return structuredClone(EMPTY);
   }
 }
 

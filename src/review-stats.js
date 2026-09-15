@@ -31,17 +31,6 @@ export function byType(signals) {
     .filter((row) => row.count > 0);
 }
 
-/** 코인별 건수와 평균 성과. 신호가 잦은 종목을 알아보는 용도. */
-export function byMarket(signals) {
-  const markets = [...new Set(signals.map((signal) => signal.market))];
-  return markets
-    .map((market) => {
-      const matching = signals.filter((signal) => signal.market === market);
-      return { market, count: matching.length, returns: averageReturns(matching) };
-    })
-    .sort((a, b) => b.count - a.count);
-}
-
 /** 화면 상단 요약 */
 export function overview(signals) {
   const counts = { golden: 0, dead: 0, proximity: 0 };

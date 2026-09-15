@@ -11,7 +11,10 @@ async function readJson(path, fallback) {
     return JSON.parse(await readFile(path, 'utf8'));
   } catch (error) {
     if (error.code === 'ENOENT') return fallback;
-    throw error;
+    // 파일이 깨졌다고 알림까지 멈출 수는 없다. 경고만 남기고 새로 쓴다.
+    // (예전 내용은 레포 커밋 기록에 남아 있다.)
+    console.warn(`${path}를 읽을 수 없어 새로 씁니다: ${error.message}`);
+    return fallback;
   }
 }
 

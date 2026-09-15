@@ -36,7 +36,8 @@ export function detectSignals(candles, { short, long, proximityThresholdPct, fro
     const prevLong = longSma[i - 1];
     const currShort = shortSma[i];
     const currLong = longSma[i];
-    if (prevShort === null || prevLong === null || currShort === null || currLong === null) continue;
+    if (prevShort == null || prevLong == null || currShort == null || currLong == null) continue;
+    if (prevLong === 0 || currLong === 0) continue; // 이격률이 NaN이 된다
 
     const prevGap = prevShort - prevLong;
     const currGap = currShort - currLong;
@@ -66,7 +67,10 @@ export function summarize(candles, { short, long }) {
   const longSma = sma(closes, long);
   const i = candles.length - 1;
 
-  if (shortSma[i] === null || longSma[i] === null) return null;
+  // 캔들이 없으면 i가 -1이 되어 배열 밖을 읽는다. == null로 undefined까지 함께 막는다.
+  if (i < 0 || shortSma[i] == null || longSma[i] == null) return null;
+  // 장기선이 0이면 이격률이 NaN이 되어 화면에 그대로 새어 나간다.
+  if (longSma[i] === 0) return null;
 
   return {
     time: candles[i].timeKst,

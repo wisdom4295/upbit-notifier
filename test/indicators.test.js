@@ -61,3 +61,26 @@ test('요약은 현재 이격률을 퍼센트로 준다', () => {
   assert.equal(result.short, 105);
   assert.ok(Math.abs(result.gapPct - ((105 - 101) / 101) * 100) < 1e-9);
 });
+
+test('캔들이 비어 있으면 요약은 null (배열 밖을 읽지 않는다)', () => {
+  assert.equal(summarize([], { short: 50, long: 200 }), null);
+  assert.equal(summarize(toCandles([]), { short: 2, long: 3 }), null);
+});
+
+test('가격이 0이면 이격률이 NaN이 되므로 요약하지 않는다', () => {
+  const zeros = toCandles([0, 0, 0, 0, 0]);
+  assert.equal(summarize(zeros, { short: 2, long: 3 }), null);
+});
+
+test('가격이 0인 구간은 시그널로 잡지 않는다', () => {
+  const signals = detectSignals(toCandles([0, 0, 0, 0, 0, 0, 0, 0]), {
+    short: 2, long: 3, proximityThresholdPct: 0.3,
+  });
+  assert.deepEqual(signals, []);
+});
+
+test('소수점 가격도 정상 계산한다', () => {
+  const result = summarize(toCandles([0.1, 0.2, 0.3, 0.4]), { short: 2, long: 4 });
+  assert.equal(result.price, 0.4);
+  assert.ok(Number.isFinite(result.gapPct));
+});

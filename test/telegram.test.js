@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { sendMessage, formatSignal } from '../src/telegram.js';
+
+const creds = { token: 'test-token', chatId: '1' };
+
+/** fetch를 갈아 끼우고 호출 기록을 돌려준다. */
+function stubFetch(responder) {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(init.body) });
+    return responder(calls.length);
+  };
+  return { calls, restore: () => { globalThis.fetch = original; } };
+}
+
+const reply = (status, body = {}) =>
+  new Response(JSON.stringify(body), { status });
+
+test('429를 받으면 알려 준 시간만큼 기다렸다 다시 보낸다', async () => {
+  const stub = stubFetch((n) =>
+    n === 1 ? reply(429, { parameters: { retry_after: 0 } }) : reply(200, { ok: true }));
+  try {
+    await sendMessage('hi', creds);
+    assert.equal(stub.calls.length, 2, '한 번 재시도해서 성공');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('400처럼 다시 보내도 소용없는 오류는 바로 실패시킨다', async () => {
+  const stub = stubFetch(() => reply(400, { description: 'chat not found' }));
+  try {
+    await assert.rejects(() => sendMessage('hi', creds), /400/);
+    assert.equal(stub.calls.length, 1, '재시도하지 않는다');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('서버 오류는 재시도하되 계속 실패하면 포기한다', async () => {
+  const stub = stubFetch(() => reply(500));
+  try {
+    await assert.rejects(() => sendMessage('hi', creds), /500/);
+    assert.ok(stub.calls.length > 1, '몇 번은 다시 시도한다');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('dry-run은 네트워크를 건드리지 않는다', async () => {
+  const stub = stubFetch(() => reply(200, { ok: true }));
+  try {
+    await sendMessage('hi', { ...creds, dryRun: true });
+    assert.equal(stub.calls.length, 0);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('토큰이 없으면 무엇이 빠졌는지 알려 준다', async () => {
+  await assert.rejects(() => sendMessage('hi', {}), /TELEGRAM_BOT_TOKEN/);
+});
+
+test('메시지에 HTML 특수문자가 들어가도 태그로 새지 않는다', () => {
+  const text = formatSignal(
+    { type: 'golden', gapPct: 0.1, short: 1, long: 1, candle: { close: 1, timeKst: '<b>x</b>' } },
+    { market: 'KRW-<script>', unit: 15, short: 50, long: 200 },
+  );
+  assert.ok(!text.includes('<script>'), '코인 코드가 이스케이프된다');
+  assert.ok(text.includes('&lt;b&gt;x&lt;/b&gt;'), '시각 문자열이 이스케이프된다');
+});

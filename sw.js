@@ -2,8 +2,8 @@
 const CACHE = 'upbit-notifier-v1';
 const SHELL = [
   './', './index.html', './app.js', './config.json', './manifest.webmanifest',
-  './src/indicators.js', './src/period.js', './src/review-stats.js',
-  './web/upbit.js', './web/store.js', './web/format.js',
+  './src/indicators.js', './src/period.js', './src/review-stats.js', './src/labels.js',
+  './web/upbit.js', './web/format.js',
   './web/current.js', './web/review.js', './web/history-client.js',
   './icons/icon-192.png', './icons/icon-512.png',
 ];

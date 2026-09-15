@@ -25,6 +25,10 @@ export const coinOf = (market) => market.replace('KRW-', '');
 export const shortTime = (kst) => kst.slice(5, 16).replace('T', ' ');
 
 /** 요소 하나를 속성·자식과 함께 만든다. 문자열은 textContent로 들어가 이스케이프가 보장된다. */
+/** null·undefined·false를 걸러 낸 자식 목록. replaceChildren에 그대로 넘길 수 있다. */
+export const nodes = (...children) =>
+  children.flat().filter((child) => child !== null && child !== undefined && child !== false);
+
 export function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(props)) {
@@ -33,8 +37,7 @@ export function el(tag, props = {}, children = []) {
     else if (key.startsWith('on')) node.addEventListener(key.slice(2).toLowerCase(), value);
     else if (value !== null && value !== undefined) node.setAttribute(key, value);
   }
-  for (const child of [children].flat()) {
-    if (child === null || child === undefined || child === false) continue;
+  for (const child of nodes(children)) {
     node.append(typeof child === 'string' ? document.createTextNode(child) : child);
   }
   return node;

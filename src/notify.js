@@ -46,13 +46,9 @@ async function analyzeMarket(market, config, state) {
             return !already || signal.candle.timeUtc > already;
           });
 
-  for (const signal of signals) {
-    marketState.lastSignalUtc = { ...marketState.lastSignalUtc, [signal.type]: signal.candle.timeUtc };
-  }
-  marketState.lastCheckedUtc = candles.at(-1).timeUtc;
-  setMarketState(state, market, marketState);
-
-  return { market, summary, signals };
+  // 상태는 전송이 끝난 뒤에 갱신한다. 여기서 미리 기록하면 전송이 실패했을 때
+  // 보내지 못한 알림이 '보낸 것'으로 남아 영영 사라진다.
+  return { market, summary, signals, marketState, checkedUtc: candles.at(-1).timeUtc };
 }
 
 async function main() {
@@ -72,15 +68,38 @@ async function main() {
   }
 
   const signals = results.flatMap((r) => r.signals.map((signal) => ({ ...signal, market: r.market })));
+  const sendFailures = new Map();
 
-  for (const signal of signals) {
-    const text = formatSignal(signal, {
-      market: signal.market,
-      unit: config.candleUnit,
-      ...config.periods,
-    });
-    await sendMessage(text, telegram);
-    console.log(`[${signal.market}] ${signal.type} @ ${signal.candle.timeKst} 알림 전송`);
+  for (const result of results) {
+    if (!result.marketState) continue;
+
+    for (const signal of result.signals) {
+      const text = formatSignal(signal, {
+        market: result.market,
+        unit: config.candleUnit,
+        ...config.periods,
+      });
+      try {
+        await sendMessage(text, telegram);
+        // 보낸 것만 기록해야 중복도 누락도 없다.
+        result.marketState.lastSignalUtc = {
+          ...result.marketState.lastSignalUtc,
+          [signal.type]: signal.candle.timeUtc,
+        };
+        console.log(`[${result.market}] ${signal.type} @ ${signal.candle.timeKst} 알림 전송`);
+      } catch (error) {
+        // 한 건이 실패해도 나머지는 계속 보낸다.
+        console.error(`[${result.market}] ${signal.type} 전송 실패:`, error.message);
+        sendFailures.set(result.market, (sendFailures.get(result.market) ?? 0) + 1);
+      }
+    }
+
+    // 전송에 실패한 마켓은 확인 지점을 그대로 두어 다음 실행에서 다시 시도한다.
+    // 이미 보낸 건은 lastSignalUtc가 막아 주므로 중복되지 않는다.
+    if (!sendFailures.has(result.market)) {
+      result.marketState.lastCheckedUtc = result.checkedUtc;
+    }
+    setMarketState(state, result.market, result.marketState);
   }
 
   if (statusOnly) {
@@ -89,20 +108,26 @@ async function main() {
 
   if (!dryRun) {
     // 회고 대시보드가 읽을 수 있도록 발생한 시그널을 월별 파일에 남긴다.
-    const added = await appendSignals(
-      signals.map((signal) => ({
-        ts: signal.candle.timeUtc,
-        kst: signal.candle.timeKst,
-        market: signal.market,
-        type: signal.type,
-        price: signal.candle.close,
-        short: signal.short,
-        long: signal.long,
-        gapPct: signal.gapPct,
-        unit: config.candleUnit,
-      })),
-    );
-    if (added > 0) console.log(`이력 ${added}건 기록`);
+    // 여기서 실패해도 상태 저장까지 막으면 같은 알림이 매 실행마다 다시 나간다.
+    // 이력이 한 건 빠지는 것보다 중복 알림이 훨씬 나쁘므로 따로 처리한다.
+    try {
+      const added = await appendSignals(
+        signals.map((signal) => ({
+          ts: signal.candle.timeUtc,
+          kst: signal.candle.timeKst,
+          market: signal.market,
+          type: signal.type,
+          price: signal.candle.close,
+          short: signal.short,
+          long: signal.long,
+          gapPct: signal.gapPct,
+          unit: config.candleUnit,
+        })),
+      );
+      if (added > 0) console.log(`이력 ${added}건 기록`);
+    } catch (error) {
+      console.error('이력 기록 실패 (알림 상태는 정상 저장):', error.message);
+    }
     await saveState(state);
   }
 
@@ -112,6 +137,13 @@ async function main() {
       note
         ? `[${market}] ${note}`
         : `[${market}] 가격 ${summary?.price} · 이격 ${summary?.gapPct.toFixed(3)}% · 시그널 ${result.signals.length}건`,
+    );
+  }
+
+  if (sendFailures.size > 0) {
+    const total = [...sendFailures.values()].reduce((a, b) => a + b, 0);
+    throw new Error(
+      `알림 ${total}건 전송 실패 (${[...sendFailures.keys()].join(', ')}) — 다음 실행에서 다시 시도합니다.`,
     );
   }
 
