@@ -13,7 +13,8 @@ export async function renderCurrent(root, { markets, settings }) {
   const rows = await Promise.all(
     markets.map(async (market) => {
       try {
-        const candles = await fetchCandles(market, settings.candleUnit, long + 2);
+        // 정확히 long개면 장기선을 계산할 수 있다. 더 받으면 요청이 2회로 늘어난다.
+        const candles = await fetchCandles(market, settings.candleUnit, long);
         return { market, summary: summarize(candles, settings.periods) };
       } catch (error) {
         return { market, summary: null, error: error.message };
