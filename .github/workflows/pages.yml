@@ -23,10 +23,10 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # Pages가 아직 꺼져 있으면 여기서 켠다 (설정 화면을 따로 들를 필요 없음)
+      # Pages는 Settings → Pages → Source: GitHub Actions 에서 한 번 켜 줘야 한다.
+      # Actions 토큰으로는 사이트 생성이 허용되지 않아(enablement로도 불가),
+      # 꺼져 있으면 여기서 "Resource not accessible by integration" 으로 멈춘다.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       # PWA가 src/indicators.js와 config.json을 그대로 참조하므로 레포 루트를 통째로 배포한다.
       - uses: actions/upload-pages-artifact@v3
         with:
