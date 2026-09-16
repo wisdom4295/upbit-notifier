@@ -272,7 +272,7 @@ help - 명령 목록
 알림을 제때 받으려면 **밖에서 정확한 주기로 깨워야** 합니다. 그래서 워크플로에
 `repository_dispatch: types: [tick]` 입구를 열어 뒀습니다.
 
-무료 cron 서비스(cron-job.org 등)에서 5분마다 아래를 호출하면 됩니다.
+무료 cron 서비스(cron-job.org 등)에서 **1분마다** 아래를 호출하면 됩니다.
 
 ```
 POST https://api.github.com/repos/<계정>/<레포>/dispatches
@@ -284,7 +284,15 @@ Accept: application/vnd.github+json
 토큰은 GitHub **Settings → Developer settings → Personal access tokens → Fine-grained**에서
 이 레포에만, **Actions: Read and write** 권한만 주어 발급하세요.
 
-> 잘 돌고 있는지는 **Actions 탭의 실행 간격**으로 확인하면 됩니다. 5분 간격으로 줄줄이 찍히면 정상입니다.
+주기를 1분으로 잡는 이유는 알림이 빨라져서가 아닙니다. 15분봉은 15분에 한 번만 마감되므로
+알림 자체는 몇 분 차이가 전부입니다. **자주 시도할수록 한 번 걸렀을 때 덜 기다리기 때문**입니다.
+실행이 밀리는 것이 이 시스템의 가장 큰 약점이라, 재시도 간격을 짧게 두는 편이 낫습니다.
+덤으로 텔레그램 명령 답장도 1분 안에 옵니다.
+
+비용은 들지 않습니다. public 레포는 Actions가 무료 무제한이고, 업비트 호출도
+하루 4천 회 수준이라 한도에 못 미칩니다. 알림이 실제로 났을 때만 커밋하므로 기록도 지저분해지지 않습니다.
+
+> 잘 돌고 있는지는 **Actions 탭의 실행 간격**으로 확인하면 됩니다. 1분 간격으로 줄줄이 찍히면 정상입니다.
 
 ---
 
