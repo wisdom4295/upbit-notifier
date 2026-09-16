@@ -60,8 +60,8 @@ test('성과는 ▲▼로 보여 준다', () => {
   assert.match(text, /하루 ▼2.5%/);
 });
 
-test('신호가 맞았는지 세어 준다', () => {
-  const text = report('daily', [
+test('주간은 신호가 맞았는지 세어 준다', () => {
+  const text = report('weekly', [
     signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC', { 24: 3 }),
     signal('2026-09-16T10:00:00', 'golden', 'KRW-ETH', { 24: -1 }),
     signal('2026-09-16T11:00:00', 'dead', 'KRW-XRP', { 24: -2 }),
@@ -72,7 +72,7 @@ test('신호가 맞았는지 세어 준다', () => {
 });
 
 test('아직 하루가 안 지난 건은 집계에서 빼고 그 사실을 알린다', () => {
-  const text = report('daily', [
+  const text = report('weekly', [
     signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC', { 24: 3 }),
     signal('2026-09-16T10:00:00', 'golden', 'KRW-ETH'),
   ]);
@@ -120,4 +120,13 @@ test('달이 바뀌는 기간도 양쪽 파일을 읽는다', async () => {
 
   const found = await readSignals({ from: '2026-08-31T00:00:00', to: '2026-09-02T00:00:00' }, dir);
   assert.deepEqual(found.map((s) => s.market), ['KRW-BTC', 'KRW-ETH']);
+});
+
+test('하루치에는 적중 집계를 넣지 않는다', () => {
+  // 하루에 오는 알림은 보통 한두 건이라 "1건 중 1건 맞음"이 100%처럼 읽힌다.
+  // 건별 성과는 아래 알림 목록에 그대로 적힌다.
+  const signals = [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC', { 24: 3 })];
+  assert.ok(!report('daily', signals).includes('신호가 맞았나'));
+  assert.match(report('daily', signals), /하루 ▲3%/);
+  assert.match(report('weekly', signals), /신호가 맞았나/);
 });

@@ -131,7 +131,7 @@ function signalLines(signals, periods, daily) {
 /**
  * 하루치 · 한 주치 정리를 만든다.
  * 알림 건수를 세는 대신, 투자하는 쪽에서 볼 것만 담는다.
- * 오늘 얼마나 움직였나 → 지금 두 선이 어디 있나 → 신호가 맞았나.
+ * 얼마나 움직였나 → 지금 두 선이 어디 있나 → 무슨 알림이 왔나.
  */
 export function formatReport(period, range, { markets, series, signals, periods, unit }) {
   const daily = period === 'daily';
@@ -153,7 +153,9 @@ export function formatReport(period, range, { markets, series, signals, periods,
     return sections.join('\n\n');
   }
 
-  const hits = accuracySection(signals, periods);
+  // 적중 집계는 주간에만 넣는다. 하루치는 보통 한두 건이라 "1건 중 1건 맞음"이
+  // 100%처럼 읽히고, 바로 아래 알림 목록에 건별 성과가 이미 다 적혀 있다.
+  const hits = daily ? null : accuracySection(signals, periods);
   if (hits) {
     sections.push(`<b>■ 신호가 맞았나</b> (하루 뒤 기준)\n${hits}`);
   }
