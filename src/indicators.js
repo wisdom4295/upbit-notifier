@@ -60,6 +60,20 @@ export function detectSignals(candles, { short, long, proximityThresholdPct, fro
   return signals;
 }
 
+/**
+ * 어디서부터 다시 살펴볼지 정한다.
+ *
+ * - 최초 실행: 마지막 캔들만. 과거 교차를 몰아서 알리지 않기 위해서다.
+ * - 그 뒤: 마지막으로 확인한 캔들 다음부터. 실행이 밀려 여러 봉을 건너뛰었어도
+ *   그 사이가 전부 포함된다.
+ * - 새 캔들이 아직 없으면 -1. 이때 억지로 훑으면 확인 지점보다 앞선 교차가
+ *   뒤늦게 알림으로 나간다.
+ */
+export function nextScanIndex(candles, lastCheckedUtc) {
+  if (!lastCheckedUtc) return candles.length - 1;
+  return candles.findIndex((candle) => candle.timeUtc > lastCheckedUtc);
+}
+
 /** 현재 시점의 이평선 상태 요약 (메시지·대시보드 공용) */
 export function summarize(candles, { short, long }) {
   const closes = candles.map((c) => c.close);

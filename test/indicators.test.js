@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sma, detectSignals, summarize } from '../src/indicators.js';
+import { sma, detectSignals, summarize, nextScanIndex } from '../src/indicators.js';
 
 const toCandles = (closes) =>
   closes.map((close, i) => ({
@@ -83,4 +83,24 @@ test('소수점 가격도 정상 계산한다', () => {
   const result = summarize(toCandles([0.1, 0.2, 0.3, 0.4]), { short: 2, long: 4 });
   assert.equal(result.price, 0.4);
   assert.ok(Number.isFinite(result.gapPct));
+});
+
+test('최초 실행은 마지막 캔들만 본다 (과거를 몰아 보내지 않는다)', () => {
+  const candles = toCandles([1, 2, 3, 4, 5]);
+  assert.equal(nextScanIndex(candles, null), 4);
+});
+
+test('확인한 지점 다음 캔들부터 본다', () => {
+  const candles = toCandles([1, 2, 3, 4, 5]);
+  assert.equal(nextScanIndex(candles, candles[2].timeUtc), 3);
+});
+
+test('실행이 여러 봉 밀렸어도 건너뛴 구간이 전부 포함된다', () => {
+  const candles = toCandles([1, 2, 3, 4, 5]);
+  assert.equal(nextScanIndex(candles, candles[0].timeUtc), 1, '1번부터 끝까지 훑는다');
+});
+
+test('새 캔들이 없으면 -1 — 훑지 않는다', () => {
+  const candles = toCandles([1, 2, 3, 4, 5]);
+  assert.equal(nextScanIndex(candles, candles.at(-1).timeUtc), -1);
 });

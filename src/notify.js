@@ -1,6 +1,6 @@
 import { loadConfig, saveMarkets } from './config.js';
 import { fetchCandles, fetchMarketCodes } from './upbit.js';
-import { detectSignals, summarize } from './indicators.js';
+import { detectSignals, summarize, nextScanIndex } from './indicators.js';
 import { formatSignal, formatStatus, sendMessage, fetchUpdates } from './telegram.js';
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
 import { appendSignals } from './history.js';
@@ -32,15 +32,12 @@ async function analyzeMarket(market, config, state) {
   }
 
   const marketState = getMarketState(state, market);
-  // 최초 실행이면 과거 시그널을 몰아서 보내지 않도록 마지막 캔들만 본다.
-  const fromIndex = marketState.lastCheckedUtc
-    ? Math.max(candles.findIndex((c) => c.timeUtc > marketState.lastCheckedUtc), 1)
-    : candles.length - 1;
+  const nextIndex = nextScanIndex(candles, marketState.lastCheckedUtc);
 
   const signals =
-    fromIndex <= 0
-      ? [] // 새로 확정된 캔들 없음
-      : detectSignals(candles, { ...periods, proximityThresholdPct: alerts.proximityThresholdPct, fromIndex })
+    nextIndex <= 0
+      ? [] // 새 캔들 없음 (또는 첫 캔들뿐이라 직전과 비교 불가)
+      : detectSignals(candles, { ...periods, proximityThresholdPct: alerts.proximityThresholdPct, fromIndex: nextIndex })
           .filter((signal) => {
             if (signal.type === 'golden' && !alerts.goldenCross) return false;
             if (signal.type === 'dead' && !alerts.deadCross) return false;
