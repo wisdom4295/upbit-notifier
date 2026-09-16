@@ -5,17 +5,17 @@
   "pending": null,
   "markets": {
     "KRW-BTC": {
-      "lastCheckedUtc": "2026-09-16T23:00:00",
+      "lastCheckedUtc": "2026-09-16T23:15:00",
       "lastSignalUtc": {
         "proximity": "2026-09-16T21:30:00"
       }
     },
     "KRW-ETH": {
-      "lastCheckedUtc": "2026-09-16T23:00:00",
+      "lastCheckedUtc": "2026-09-16T23:15:00",
       "lastSignalUtc": {}
     },
     "KRW-XRP": {
-      "lastCheckedUtc": "2026-09-16T23:00:00",
+      "lastCheckedUtc": "2026-09-16T23:15:00",
       "lastSignalUtc": {
         "dead": "2026-09-15T20:00:00"
       }
