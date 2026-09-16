@@ -1,9 +1,8 @@
+import { escapeHtml } from './html.js';
 import { signalLabel, signalName } from './labels.js';
 
 const API_BASE = 'https://api.telegram.org';
 
-const escapeHtml = (text) =>
-  String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // 텔레그램은 한 대화방에 초당 1건 정도만 받는다. 코인을 여럿 감시하면 한 번에
 // 여러 건이 몰리므로, 간격을 두고 보내고 429는 알려 준 시간만큼 기다렸다 다시 보낸다.

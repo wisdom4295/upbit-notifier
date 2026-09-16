@@ -30,10 +30,16 @@ async function request(path, { retries = 3 } = {}) {
   throw lastError;
 }
 
-/** 거래 가능한 마켓 코드 목록 (예: ["KRW-BTC", ...]) */
-export async function fetchMarketCodes() {
+/**
+ * 원화 마켓 목록. 한글 이름도 같이 받아 "도지"처럼 적어도 찾을 수 있게 한다.
+ * BTC·USDT 마켓은 뺀다. 가격을 원으로 보여 주는 알림이라 원화 마켓만 다룬다.
+ * @returns {{market: string, koreanName: string}[]}
+ */
+export async function fetchMarkets() {
   const markets = await request('/market/all?isDetails=false');
-  return markets.map((m) => m.market);
+  return markets
+    .filter((m) => m.market.startsWith('KRW-'))
+    .map((m) => ({ market: m.market, koreanName: m.korean_name ?? '' }));
 }
 
 /**
@@ -64,6 +70,7 @@ export async function fetchCandles(market, unit, count) {
       market,
       timeUtc: candle.candle_date_time_utc,
       timeKst: candle.candle_date_time_kst,
+      ms: Date.parse(`${candle.candle_date_time_utc}Z`),
       close: candle.trade_price,
       high: candle.high_price,
       low: candle.low_price,

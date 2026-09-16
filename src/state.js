@@ -2,7 +2,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 // lastUpdateId: 여기까지 처리한 텔레그램 메시지. 같은 명령을 두 번 처리하지 않는다.
 // lastDailyReport/lastWeeklyReport: 리포트를 같은 기간에 두 번 보내지 않기 위한 기록
-const EMPTY = { lastUpdateId: 0, lastDailyReport: null, lastWeeklyReport: null, markets: {} };
+// pending: 번호로 고르라고 띄워 둔 코인 후보. 번호 답장을 받으면 지운다.
+const EMPTY = { lastUpdateId: 0, lastDailyReport: null, lastWeeklyReport: null, pending: null, markets: {} };
 
 /** 알림 중복 발송을 막기 위한 상태. 워크플로가 레포에 커밋해 유지한다. */
 export async function loadState(path = 'state.json') {

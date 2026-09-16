@@ -1,10 +1,10 @@
 import { loadConfig, saveMarkets } from './config.js';
-import { fetchCandles, fetchMarketCodes } from './upbit.js';
+import { fetchCandles, fetchMarkets } from './upbit.js';
 import { detectSignals, summarize, nextScanIndex } from './indicators.js';
 import { formatSignal, formatStatus, sendMessage, fetchUpdates } from './telegram.js';
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
 import { appendSignals } from './history.js';
-import { parseCommand, applyCommand } from './commands.js';
+import { parseCommand, interpret, applyCommand } from './commands.js';
 import { dueReports, markReportSent } from './schedule.js';
 import { buildReport } from './report.js';
 
@@ -71,12 +71,12 @@ async function handleCommands(config, state) {
     return { markets, statusRequested };
   }
 
+  // 한글 이름으로 찾고, 있지도 않은 코인이 들어가지 않도록 실제 목록과 대조한다.
+  // 번호를 고르는 답장은 띄워 둔 목록에 이름이 남아 있어 목록을 다시 받지 않아도 된다.
   let availableMarkets = [];
-  const hasEdit = updates.some((u) => ['add', 'remove'].includes(parseCommand(u.message?.text)?.name));
-  if (hasEdit) {
-    // 있지도 않은 코인을 목록에 넣지 않도록 실제 마켓 목록과 대조한다.
-    availableMarkets = await fetchMarketCodes().catch(() => []);
-  }
+  const needsList = updates.some((u) =>
+    ['add', 'remove', 'list'].includes(parseCommand(u.message?.text)?.name));
+  if (needsList) availableMarkets = await fetchMarkets().catch(() => []);
 
   for (const update of updates) {
     state.lastUpdateId = Math.max(state.lastUpdateId ?? 0, update.update_id);
@@ -85,10 +85,19 @@ async function handleCommands(config, state) {
     // 설정된 대화방이 아니면 무시한다. 봇 이름을 아는 누구나 목록을 바꿀 수는 없다.
     if (!message?.text || String(message.chat?.id) !== String(telegram.chatId)) continue;
 
-    const command = parseCommand(message.text);
+    // 번호만 적은 답장은 고를 목록을 띄워 둔 동안에만 명령으로 친다.
+    const command = interpret(message.text, { hasPending: Boolean(state.pending) });
     if (!command) continue;
 
-    const result = applyCommand(command, { markets, availableMarkets, chatId: message.chat.id });
+    const result = applyCommand(command, {
+      markets,
+      availableMarkets,
+      chatId: message.chat.id,
+      pending: state.pending,
+      now: Date.now(),
+    });
+    // undefined 는 '그대로 두라'는 뜻이다. null 이어야 지운다.
+    if (result.pending !== undefined) state.pending = result.pending;
     if (result.changed) {
       markets = result.markets;
       await saveMarkets(markets);

@@ -1,106 +1,187 @@
 import { readSignals } from './history.js';
 import { fetchCandles } from './upbit.js';
-import { returnAfter, todayRange, weekRange } from './period.js';
-import { byType, overview, HORIZONS } from './review-stats.js';
-import { signalName } from './labels.js';
+import { returnAfter } from './period.js';
+import { todayRange, weekRange } from './period.js';
+import { periodMove, gapTrend, accuracy } from './report-stats.js';
+import { signalLabel } from './labels.js';
 
-// 텔레그램 한 통은 4096자 제한이 있다. 건수가 많은 날은 목록을 줄인다.
-const MAX_LISTED = 25;
+const MAX_LISTED = 20; // 텔레그램 한 통은 4096자 제한이 있다
+const HORIZONS = [1, 4, 24];
 const HORIZON_LABEL = { 1: '1시간', 4: '4시간', 24: '하루' };
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
-const krw = (value) =>
-  value >= 1000 ? Math.round(value).toLocaleString('ko-KR') : value.toLocaleString('ko-KR', { maximumFractionDigits: 4 });
+const won = (value) =>
+  value >= 1000 ? Math.round(value).toLocaleString('ko-KR') : Number(value.toFixed(4)).toLocaleString('ko-KR');
 
-const pct = (value) => {
-  if (value === null || value === undefined) return '—';
-  const rounded = Number(value.toFixed(2));
-  return `${rounded > 0 ? '+' : ''}${rounded}%`;
+/** 등락은 ▲▼로. 국내에서 가장 익숙한 표기다. */
+const move = (pct) => {
+  if (pct === null || pct === undefined) return '—';
+  const rounded = Number(pct.toFixed(2));
+  if (rounded === 0) return '0%';
+  return `${rounded > 0 ? '▲' : '▼'}${Math.abs(rounded)}%`;
 };
 
-/** 신호마다 그 뒤 가격이 어떻게 움직였는지 붙인다. */
-export async function attachReturns(signals, defaultUnit) {
-  if (signals.length === 0) return [];
+const coinOf = (market) => market.replace('KRW-', '');
 
-  const oldest = new Map();
-  for (const signal of signals) {
-    const ms = Date.parse(`${signal.ts}Z`);
-    const unit = signal.unit ?? defaultUnit;
-    const current = oldest.get(signal.market);
-    if (!current || ms < current.ms) oldest.set(signal.market, { ms, unit });
-  }
+/** '2026-09-16' → '9월 16일 (수)' */
+function koreanDate(isoDate) {
+  const [, month, day] = isoDate.split('-').map(Number);
+  const weekday = WEEKDAY[new Date(`${isoDate}T00:00:00Z`).getUTCDay()];
+  return `${month}월 ${day}일 (${weekday})`;
+}
 
+/** 감시 중인 코인 전부의 시세를 받아 온다. 알림이 없던 코인도 움직임은 알아야 한다. */
+async function loadSeries(markets, unit, fromMs) {
   const series = new Map();
-  for (const [market, { ms, unit }] of oldest) {
-    // 하루 뒤 성과까지 보려면 신호 시점부터 지금까지가 다 필요하다.
-    const needed = Math.ceil((Date.now() - ms) / (unit * 60_000)) + 5;
+  for (const market of markets) {
+    const span = Date.now() - fromMs;
+    // 200선을 계산하려면 기간 앞쪽으로 200봉이 더 필요하다.
+    const needed = Math.ceil(span / (unit * 60_000)) + 220;
     try {
-      series.set(market, await fetchCandles(market, unit, Math.min(Math.max(needed, 10), 1000)));
+      series.set(market, await fetchCandles(market, unit, Math.min(needed, 1000)));
     } catch {
-      series.set(market, []); // 시세를 못 받아도 목록은 보내야 한다
+      series.set(market, []); // 한 종목을 못 받아도 나머지는 보낸다
     }
   }
+  return series;
+}
 
+function attachReturns(signals, series, defaultUnit) {
   return signals.map((signal) => {
     const candles = series.get(signal.market) ?? [];
     const ms = Date.parse(`${signal.ts}Z`);
     return {
       ...signal,
-      returns: Object.fromEntries(HORIZONS.map((h) => [h, returnAfter(candles, ms, h, signal.price)])),
+      returns: Object.fromEntries(
+        HORIZONS.map((hours) => [hours, returnAfter(candles, ms, hours, signal.price)]),
+      ),
     };
   });
 }
 
-function line(signal, periods) {
-  const time = signal.kst.slice(5, 16).replace('T', ' ');
-  const after = HORIZONS.map((h) => `${HORIZON_LABEL[h]} ${pct(signal.returns?.[h])}`).join(' · ');
-  return `${time} <b>${signal.market.replace('KRW-', '')}</b> ${signalName(signal.type, periods)}\n   ${krw(signal.price)} → ${after}`;
+function movesSection(markets, series, periods, fromMs, label) {
+  const lines = [];
+
+  for (const market of markets) {
+    const candles = series.get(market) ?? [];
+    const moved = periodMove(candles, fromMs);
+    if (!moved) {
+      lines.push(`${coinOf(market)}  시세를 받지 못했습니다`);
+      continue;
+    }
+    lines.push(`<b>${coinOf(market)}</b>  ${won(moved.last)}원  ${move(moved.changePct)}`);
+    lines.push(`   ${label} ${won(moved.low)} ~ ${won(moved.high)}`);
+  }
+
+  return lines.join('\n');
+}
+
+function gapSection(markets, series, periods) {
+  const { short, long } = periods;
+
+  const rows = markets
+    .map((market) => ({ market, trend: gapTrend(series.get(market) ?? [], periods, Date.now() - 24 * 60 * 60 * 1000) }))
+    .filter((row) => row.trend)
+    // 교차에 가까운 종목이 위로. 다음에 주목할 것이 먼저 보여야 한다.
+    .sort((a, b) => Math.abs(a.trend.gapPct) - Math.abs(b.trend.gapPct));
+
+  return rows
+    .map(({ market, trend }) => {
+      const side = trend.gapPct >= 0 ? '위' : '아래';
+      const drift = trend.closing === null ? '' : trend.closing ? ' · 좁혀지는 중' : ' · 벌어지는 중';
+      return `<b>${coinOf(market)}</b>  ${short}선이 ${long}선 ${side} ${Math.abs(trend.gapPct).toFixed(2)}%${drift}`;
+    })
+    .join('\n');
+}
+
+function accuracySection(signals, periods) {
+  const rows = accuracy(signals);
+  if (rows.length === 0) return null;
+
+  const lines = rows.map((row) => {
+    const { emoji, brief } = signalLabel(row.type, periods);
+    const name = `${emoji} ${brief}`;
+    const average = row.averagePct === null ? '' : `  평균 ${move(row.averagePct)}`;
+
+    if (row.hits === null) return `${name}  ${row.count}건${average}`;
+    if (row.scored === 0) return `${name}  ${row.count}건  아직 하루가 안 지났습니다`;
+    return `${name}  ${row.scored}건 중 <b>${row.hits}건 맞음</b>${average}`;
+  });
+
+  const pending = rows.reduce((sum, row) => sum + row.pending, 0);
+  if (pending > 0) lines.push(`(${pending}건은 아직 하루가 안 지나 집계에서 뺐습니다)`);
+
+  return lines.join('\n');
+}
+
+function signalLines(signals, periods, daily) {
+  return [...signals]
+    .sort((a, b) => b.kst.localeCompare(a.kst))
+    .slice(0, MAX_LISTED)
+    .map((signal) => {
+      const { emoji, brief } = signalLabel(signal.type, periods);
+      const after = HORIZONS.map((h) => `${HORIZON_LABEL[h]} ${move(signal.returns?.[h])}`).join(' · ');
+      // 주간은 여러 날이 섞이므로 날짜까지 적어야 언제 일인지 안다.
+      const when = daily ? signal.kst.slice(11, 16) : signal.kst.slice(5, 16).replace('T', ' ');
+      return `${when}  <b>${coinOf(signal.market)}</b>  ${emoji} ${brief}  ${won(signal.price)}원\n     ${after}`;
+    })
+    .join('\n');
 }
 
 /**
- * 하루치 · 한 주치 정리를 텔레그램 메시지로 만든다.
- * @param {'daily'|'weekly'} period
+ * 하루치 · 한 주치 정리를 만든다.
+ * 알림 건수를 세는 대신, 투자하는 쪽에서 볼 것만 담는다.
+ * 오늘 얼마나 움직였나 → 지금 두 선이 어디 있나 → 신호가 맞았나.
  */
-export function formatReport(period, range, signals, { short, long, unit }) {
-  const title = period === 'daily' ? '📅 오늘 알림 정리' : '🗓 이번 주 알림 정리';
-  const head = `${title}\n${range.label}\n${unit}분봉 · ${short}선 / ${long}선`;
+export function formatReport(period, range, { markets, series, signals, periods, unit }) {
+  const daily = period === 'daily';
+  const fromMs = Date.parse(`${range.from}+09:00`);
+  const title = daily
+    ? `📅 ${koreanDate(range.label)} 마감`
+    : `🗓 주간 정리 · ${range.label}`;
+
+  const sections = [
+    `${title}\n${unit}분봉 · ${periods.short}선 / ${periods.long}선`,
+    `<b>■ ${daily ? '오늘' : '이번 주'} 움직임</b>\n${movesSection(markets, series, periods, fromMs, daily ? '오늘' : '주간')}`,
+  ];
+
+  const gaps = gapSection(markets, series, periods);
+  if (gaps) sections.push(`<b>■ 지금 두 선</b>\n${gaps}`);
 
   if (signals.length === 0) {
-    return `${head}\n\n이 기간에 온 알림이 없습니다.`;
+    sections.push(`<b>■ ${daily ? '오늘' : '이번 주'} 온 알림</b>\n없습니다.`);
+    return sections.join('\n\n');
   }
 
-  const summary = overview(signals);
-  const counts = `알림 <b>${summary.total}건</b> · 위로 ${summary.counts.golden} · 아래로 ${summary.counts.dead} · 근접 ${summary.counts.proximity}`;
-  const average = HORIZONS.map((h) => `${HORIZON_LABEL[h]} ${pct(summary.returns[h])}`).join(' · ');
+  const hits = accuracySection(signals, periods);
+  if (hits) {
+    sections.push(`<b>■ 신호가 맞았나</b> (하루 뒤 기준)\n${hits}`);
+  }
 
-  const perType = byType(signals)
-    .map((row) => `${signalName(row.type, { short, long })} ${row.count}건 — 하루 뒤 평균 ${pct(row.returns[24])}`)
-    .join('\n');
+  const rest = signals.length > MAX_LISTED ? `\n…외 ${signals.length - MAX_LISTED}건` : '';
+  sections.push(`<b>■ 받은 알림 ${signals.length}건</b>\n${signalLines(signals, periods, daily)}${rest}`);
 
-  const newest = [...signals].sort((a, b) => b.kst.localeCompare(a.kst));
-  const listed = newest.slice(0, MAX_LISTED).map((s) => line(s, { short, long })).join('\n');
-  const rest = newest.length > MAX_LISTED ? `\n\n…외 ${newest.length - MAX_LISTED}건` : '';
+  if (hits) sections.push('맞음 = 🟢는 하루 뒤 올랐고, 🔴는 내린 경우입니다.');
 
-  return [
-    head,
-    '',
-    counts,
-    `신호 후 평균: ${average}`,
-    '',
-    '<b>종류별</b>',
-    perType,
-    '',
-    '<b>받은 알림</b>',
-    listed + rest,
-  ].join('\n');
+  return sections.join('\n\n');
 }
 
-/** 리포트에 쓸 신호를 모아 성과까지 붙여 돌려준다. */
 export async function buildReport(period, config, now = Date.now()) {
   const range = period === 'daily' ? todayRange(now) : weekRange(now);
-  const signals = await attachReturns(await readSignals(range), config.candleUnit);
+  const fromMs = Date.parse(`${range.from}+09:00`);
+
+  const series = await loadSeries(config.markets, config.candleUnit, fromMs);
+  const signals = attachReturns(await readSignals(range), series, config.candleUnit);
+
   return {
     range,
     signals,
-    text: formatReport(period, range, signals, { ...config.periods, unit: config.candleUnit }),
+    text: formatReport(period, range, {
+      markets: config.markets,
+      series,
+      signals,
+      periods: config.periods,
+      unit: config.candleUnit,
+    }),
   };
 }
