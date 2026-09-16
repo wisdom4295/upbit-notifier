@@ -2,7 +2,7 @@ import { readSignals } from './history.js';
 import { fetchCandles } from './upbit.js';
 import { returnAfter } from './period.js';
 import { todayRange, weekRange } from './period.js';
-import { periodMove, gapTrend, accuracy } from './report-stats.js';
+import { periodMove, gapTrend } from './report-stats.js';
 import { signalLabel } from './labels.js';
 
 const MAX_LISTED = 20; // 텔레그램 한 통은 4096자 제한이 있다
@@ -94,26 +94,6 @@ function gapSection(markets, series, periods) {
     .join('\n');
 }
 
-function accuracySection(signals, periods) {
-  const rows = accuracy(signals);
-  if (rows.length === 0) return null;
-
-  const lines = rows.map((row) => {
-    const { emoji, brief } = signalLabel(row.type, periods);
-    const name = `${emoji} ${brief}`;
-    const average = row.averagePct === null ? '' : `  평균 ${move(row.averagePct)}`;
-
-    if (row.hits === null) return `${name}  ${row.count}건${average}`;
-    if (row.scored === 0) return `${name}  ${row.count}건  아직 하루가 안 지났습니다`;
-    return `${name}  ${row.scored}건 중 <b>${row.hits}건 맞음</b>${average}`;
-  });
-
-  const pending = rows.reduce((sum, row) => sum + row.pending, 0);
-  if (pending > 0) lines.push(`(${pending}건은 아직 하루가 안 지나 집계에서 뺐습니다)`);
-
-  return lines.join('\n');
-}
-
 function signalLines(signals, periods, daily) {
   return [...signals]
     .sort((a, b) => b.kst.localeCompare(a.kst))
@@ -153,17 +133,8 @@ export function formatReport(period, range, { markets, series, signals, periods,
     return sections.join('\n\n');
   }
 
-  // 적중 집계는 주간에만 넣는다. 하루치는 보통 한두 건이라 "1건 중 1건 맞음"이
-  // 100%처럼 읽히고, 바로 아래 알림 목록에 건별 성과가 이미 다 적혀 있다.
-  const hits = daily ? null : accuracySection(signals, periods);
-  if (hits) {
-    sections.push(`<b>■ 신호가 맞았나</b> (하루 뒤 기준)\n${hits}`);
-  }
-
   const rest = signals.length > MAX_LISTED ? `\n…외 ${signals.length - MAX_LISTED}건` : '';
   sections.push(`<b>■ 받은 알림 ${signals.length}건</b>\n${signalLines(signals, periods, daily)}${rest}`);
-
-  if (hits) sections.push('맞음 = 🟢는 하루 뒤 올랐고, 🔴는 내린 경우입니다.');
 
   return sections.join('\n\n');
 }

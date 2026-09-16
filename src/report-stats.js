@@ -38,37 +38,3 @@ export function gapTrend(candles, periods, fromMs) {
     closing: before ? Math.abs(now.gapPct) < Math.abs(before.gapPct) : null,
   };
 }
-
-/** 신호가 가리킨 방향으로 실제로 움직였는가 (하루 뒤 기준) */
-function isHit(type, change) {
-  if (change === null || change === undefined) return null;
-  if (type === 'golden') return change > 0;
-  if (type === 'dead') return change < 0;
-  return null; // 근접은 방향을 가리키지 않는다
-}
-
-/**
- * 신호 종류별로 몇 건이 맞았는지.
- * 평균만 보면 한 건이 크게 튀었을 때 왜곡되므로 맞은 횟수를 함께 센다.
- */
-export function accuracy(signals, horizon = 24) {
-  const types = ['golden', 'dead', 'proximity'];
-
-  return types
-    .map((type) => {
-      const matching = signals.filter((signal) => signal.type === type);
-      const scored = matching.filter((signal) => typeof signal.returns?.[horizon] === 'number');
-      const changes = scored.map((signal) => signal.returns[horizon]);
-      const hits = scored.filter((signal) => isHit(type, signal.returns[horizon]) === true).length;
-
-      return {
-        type,
-        count: matching.length,
-        scored: scored.length,
-        pending: matching.length - scored.length,
-        hits: type === 'proximity' ? null : hits,
-        averagePct: changes.length > 0 ? changes.reduce((a, b) => a + b, 0) / changes.length : null,
-      };
-    })
-    .filter((row) => row.count > 0);
-}

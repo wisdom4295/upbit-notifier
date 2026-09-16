@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { periodMove, gapTrend, accuracy } from '../src/report-stats.js';
+import { periodMove, gapTrend } from '../src/report-stats.js';
 
 const START = Date.parse('2026-09-16T00:00:00+09:00');
 const at = (i) => START + i * 15 * 60_000;
@@ -50,37 +50,4 @@ test('선을 그릴 캔들이 모자라면 집계하지 않는다', () => {
 test('앞 기간 캔들이 모자라면 좁혀지는지는 모른다고 둔다', () => {
   const candles = line(slope(250, 1000, 2));
   assert.equal(gapTrend(candles, { short: 50, long: 200 }, at(10)).closing, null);
-});
-
-const signal = (type, change) => ({ type, returns: { 24: change } });
-
-test('위로 신호는 올랐으면 맞은 것으로 센다', () => {
-  const [row] = accuracy([signal('golden', 2), signal('golden', -1)]);
-  assert.equal(row.type, 'golden');
-  assert.equal(row.scored, 2);
-  assert.equal(row.hits, 1);
-  assert.equal(row.averagePct, 0.5);
-});
-
-test('아래로 신호는 내렸으면 맞은 것으로 센다', () => {
-  const [row] = accuracy([signal('dead', -2), signal('dead', -1)]);
-  assert.equal(row.hits, 2);
-});
-
-test('근접은 방향이 없어 맞고 틀림을 따지지 않는다', () => {
-  const [row] = accuracy([signal('proximity', 3)]);
-  assert.equal(row.hits, null);
-  assert.equal(row.count, 1);
-});
-
-test('아직 하루가 안 지난 건은 따로 센다', () => {
-  const [row] = accuracy([signal('golden', null), signal('golden', 1)]);
-  assert.equal(row.count, 2);
-  assert.equal(row.scored, 1);
-  assert.equal(row.pending, 1);
-});
-
-test('없는 종류는 빼고 돌려준다', () => {
-  assert.deepEqual(accuracy([signal('golden', 1)]).map((r) => r.type), ['golden']);
-  assert.deepEqual(accuracy([]), []);
 });
