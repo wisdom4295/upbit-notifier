@@ -63,11 +63,54 @@ test('토큰이 없으면 무엇이 빠졌는지 알려 준다', async () => {
   await assert.rejects(() => sendMessage('hi', {}), /TELEGRAM_BOT_TOKEN/);
 });
 
+const signal = (overrides = {}) => ({
+  type: 'dead', gapPct: -0.115, short: 1891, long: 1893,
+  candle: { close: 1757, timeKst: '2026-09-16T05:00:00' },
+  ...overrides,
+});
+const context = { market: 'KRW-XRP', unit: 15, short: 50, long: 200 };
+
+test('첫 줄에 코인과 무슨 일인지가 함께 있다', () => {
+  // 폰 알림 배너에는 첫 줄만 보인다. 코인 이름만 있으면 열어 봐야 안다.
+  const first = formatSignal(signal(), context).split('\n')[0];
+  assert.match(first, /XRP/);
+  assert.match(first, /50선이 200선 아래로/);
+});
+
+test('교차 방향이 첫 줄에서 갈린다', () => {
+  const up = formatSignal(signal({ type: 'golden', gapPct: 0.042 }), context).split('\n')[0];
+  assert.match(up, /50선이 200선 위로/);
+  const near = formatSignal(signal({ type: 'proximity', gapPct: 0.31 }), context).split('\n')[0];
+  assert.match(near, /근접/);
+});
+
+test('기간을 바꾸면 문구의 숫자도 따라간다', () => {
+  const text = formatSignal(signal(), { ...context, short: 20, long: 60 });
+  assert.match(text, /20선이 60선 아래로/);
+  assert.match(text, /20선 {2}1,891원/);
+});
+
+test('두 선 차이는 부호 없이 크기만 보여 준다', () => {
+  // 방향은 첫 줄이 이미 말해 주므로 음수 부호까지 읽을 필요가 없다.
+  const text = formatSignal(signal(), context);
+  assert.match(text, /두 선 차이 {2}<b>0\.115%<\/b>/);
+  assert.ok(!text.includes('-0.115'), '음수 부호는 빼고 보여 준다');
+});
+
+test('시각은 연도와 초를 빼고 짧게 적는다', () => {
+  assert.match(formatSignal(signal(), context), /09-16 05:00 기준 \(15분봉\)/);
+});
+
 test('메시지에 HTML 특수문자가 들어가도 태그로 새지 않는다', () => {
   const text = formatSignal(
-    { type: 'golden', gapPct: 0.1, short: 1, long: 1, candle: { close: 1, timeKst: '<b>x</b>' } },
-    { market: 'KRW-<script>', unit: 15, short: 50, long: 200 },
+    signal({ candle: { close: 1, timeKst: '2026-09-16T05:<b>0</b>' } }),
+    { ...context, market: 'KRW-<script>' },
   );
   assert.ok(!text.includes('<script>'), '코인 코드가 이스케이프된다');
-  assert.ok(text.includes('&lt;b&gt;x&lt;/b&gt;'), '시각 문자열이 이스케이프된다');
+  assert.ok(!text.includes('CRIX.UPBIT.KRW-<'), '링크 주소도 안전하게 인코딩된다');
+
+  // 굵게 표시(<b>)는 우리가 넣은 것이므로, 바깥에서 들어온 시각 줄만 따로 본다.
+  const stampLine = text.split('\n').find((line) => line.includes('기준'));
+  assert.ok(!stampLine.includes('<'), '시각 줄에 날것 꺾쇠가 남지 않는다');
+  assert.match(stampLine, /&lt;/);
 });

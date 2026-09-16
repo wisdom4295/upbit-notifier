@@ -6,8 +6,10 @@
 const EMOJI = { golden: '🟢', dead: '🔴', proximity: '🟡' };
 
 /**
- * @returns {{emoji: string, brief: string, full: string}}
- *   brief = 표 한 칸에 들어갈 짧은 이름, full = 문장으로 읽히는 설명
+ * @returns {{emoji: string, brief: string, headline: string, full: string}}
+ *   brief = 좁은 칸용 짧은 이름
+ *   headline = 알림 첫 줄. 폰 배너에 이 줄만 보이므로 무슨 일인지가 여기 있어야 한다.
+ *   full = 문장으로 읽히는 설명
  */
 export function signalLabel(type, { short, long }) {
   const brief = {
@@ -16,14 +18,20 @@ export function signalLabel(type, { short, long }) {
     proximity: `${short}선 근접`,
   }[type];
 
+  const headline = {
+    golden: `${short}선이 ${long}선 위로`,
+    dead: `${short}선이 ${long}선 아래로`,
+    proximity: `${short}선이 ${long}선에 근접`,
+  }[type];
+
   const full = {
     golden: `${short}선이 ${long}선을 아래에서 위로 뚫었습니다.`,
     dead: `${short}선이 ${long}선을 위에서 아래로 뚫었습니다.`,
     proximity: `${short}선이 ${long}선에 거의 닿았습니다. 곧 뚫을 수 있습니다.`,
   }[type];
 
-  if (!brief) return { emoji: '', brief: type, full: '' };
-  return { emoji: EMOJI[type], brief, full };
+  if (!brief) return { emoji: '', brief: type, headline: type, full: '' };
+  return { emoji: EMOJI[type], brief, headline, full };
 }
 
 /** 이모지까지 붙인 표시용 이름 */

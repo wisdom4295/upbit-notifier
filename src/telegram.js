@@ -76,25 +76,31 @@ export async function fetchUpdates({ token, offset } = {}) {
   return body.result ?? [];
 }
 
-/** 시그널 1건을 텔레그램 메시지로 변환한다. */
+/** '2026-09-16T05:00:00' → '09-16 05:00' */
+const shortStamp = (timeKst) => timeKst.slice(5, 16).replace('T', ' ');
+
+/**
+ * 시그널 1건을 텔레그램 메시지로 변환한다.
+ *
+ * 첫 줄에 무슨 일인지를 담는다. 폰 알림 배너에는 첫 줄만 보이므로,
+ * 코인 이름만 있으면 열어 봐야 알 수 있다.
+ */
 export function formatSignal(signal, { market, unit, short, long }) {
   const coin = market.split('-')[1];
   // 마켓 코드는 config 검증을 통과한 값이지만, 링크에 그대로 끼워 넣으면
   // 검증이 느슨해지는 날 HTML이 깨진다. URL·HTML 양쪽으로 한 번씩 막아 둔다.
   const chartUrl = escapeHtml(`https://upbit.com/exchange?code=CRIX.UPBIT.${encodeURIComponent(market)}`);
-  const { emoji, full } = signalLabel(signal.type, { short, long });
-  const side = signal.gapPct >= 0 ? `${short}선이 위` : `${short}선이 아래`;
+  const { emoji, headline } = signalLabel(signal.type, { short, long });
 
   return [
-    `${emoji} <b>${escapeHtml(coin)}</b> (${unit}분봉)`,
-    full,
+    `${emoji} <b>${escapeHtml(coin)}</b> · ${headline}`,
     '',
-    `현재가: <b>${krw(signal.candle.close)}</b>`,
-    `${short}선: ${krw(signal.short)}`,
-    `${long}선: ${krw(signal.long)}`,
-    `두 선 차이: <b>${signal.gapPct.toFixed(3)}%</b> (${side})`,
-    `기준 캔들: ${escapeHtml(signal.candle.timeKst.replace('T', ' '))} KST`,
+    `지금 가격  <b>${krw(signal.candle.close)}원</b>`,
+    `${short}선  ${krw(signal.short)}원`,
+    `${long}선  ${krw(signal.long)}원`,
+    `두 선 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
     '',
+    `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준 (${unit}분봉)`,
     `<a href="${chartUrl}">업비트에서 보기</a>`,
   ].join('\n');
 }
@@ -104,8 +110,8 @@ export function formatStatus(summaries, { unit, short, long }) {
   const lines = summaries.map(({ market, summary }) => {
     const coin = market.split('-')[1];
     if (!summary) return `• ${escapeHtml(coin)}: 캔들 데이터 부족`;
-    const side = summary.gapPct >= 0 ? '▲' : '▼';
-    return `• <b>${escapeHtml(coin)}</b> ${krw(summary.price)} · 두 선 차이 ${side} ${summary.gapPct.toFixed(3)}%`;
+    const side = summary.gapPct >= 0 ? '위' : '아래';
+    return `• <b>${escapeHtml(coin)}</b> ${krw(summary.price)}원 · 두 선 차이 ${Math.abs(summary.gapPct).toFixed(3)}% (${short}선이 ${side})`;
   });
 
   return [
