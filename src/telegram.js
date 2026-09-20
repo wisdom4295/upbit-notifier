@@ -89,7 +89,7 @@ export function formatSignal(signal, { market, unit, short, long, vwma }) {
   // 마켓 코드는 config 검증을 통과한 값이지만, 링크에 그대로 끼워 넣으면
   // 검증이 느슨해지는 날 HTML이 깨진다. URL·HTML 양쪽으로 한 번씩 막아 둔다.
   const chartUrl = escapeHtml(`https://upbit.com/exchange?code=CRIX.UPBIT.${encodeURIComponent(market)}`);
-  const { emoji, headline } = signalLabel(signal.type, { short, long, vwma });
+  const { emoji, headline } = signalLabel(signal.type, { short, long, vwma, unit });
 
   // 거래량선 신호는 가격과 선 하나를 견주므로 본문도 그 둘만 적는다.
   const body = signal.line
@@ -105,12 +105,17 @@ export function formatSignal(signal, { market, unit, short, long, vwma }) {
         `두 선 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
       ];
 
+  // 첫 줄이 이미 봉 단위를 말했으면 꼬리에서 되풀이하지 않는다.
+  const stamp = signal.line
+    ? `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준`
+    : `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준 (${unit}분봉)`;
+
   return [
     `${emoji} <b>${escapeHtml(coin)}</b> · ${headline}`,
     '',
     ...body,
     '',
-    `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준 (${unit}분봉)`,
+    stamp,
     `<a href="${chartUrl}">업비트에서 보기</a>`,
   ].join('\n');
 }

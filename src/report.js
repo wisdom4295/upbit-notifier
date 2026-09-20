@@ -94,12 +94,12 @@ function gapSection(markets, series, periods) {
     .join('\n');
 }
 
-function signalLines(signals, periods, daily) {
+function signalLines(signals, periods, daily, unit) {
   return [...signals]
     .sort((a, b) => b.kst.localeCompare(a.kst))
     .slice(0, MAX_LISTED)
     .map((signal) => {
-      const { emoji, brief } = signalLabel(signal.type, periods);
+      const { emoji, brief } = signalLabel(signal.type, { ...periods, unit });
       const after = HORIZONS.map((h) => `${HORIZON_LABEL[h]} ${move(signal.returns?.[h])}`).join(' · ');
       // 주간은 여러 날이 섞이므로 날짜까지 적어야 언제 일인지 안다.
       const when = daily ? signal.kst.slice(11, 16) : signal.kst.slice(5, 16).replace('T', ' ');
@@ -134,7 +134,7 @@ export function formatReport(period, range, { markets, series, signals, periods,
   }
 
   const rest = signals.length > MAX_LISTED ? `\n…외 ${signals.length - MAX_LISTED}건` : '';
-  sections.push(`<b>■ 받은 알림 ${signals.length}건</b>\n${signalLines(signals, periods, daily)}${rest}`);
+  sections.push(`<b>■ 받은 알림 ${signals.length}건</b>\n${signalLines(signals, periods, daily, unit)}${rest}`);
 
   return sections.join('\n\n');
 }
