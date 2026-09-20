@@ -1,6 +1,6 @@
 import { loadConfig, saveMarkets } from './config.js';
 import { fetchCandles, fetchMarkets } from './upbit.js';
-import { detectSignals, summarize, nextScanIndex } from './indicators.js';
+import { detectSignals, detectBreakouts, summarize, nextScanIndex } from './indicators.js';
 import { formatSignal, formatStatus, sendMessage, fetchUpdates } from './telegram.js';
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
 import { appendSignals } from './history.js';
@@ -20,7 +20,8 @@ const telegram = {
 
 async function analyzeMarket(market, config, state) {
   const { periods, candleUnit, lookbackCandles, alerts, confirmOnClosedCandle } = config;
-  const needed = periods.long + lookbackCandles + 2;
+  // 거래량선이 200선보다 길 수도 있으니 둘 중 긴 쪽을 기준으로 받아 온다.
+  const needed = Math.max(periods.long, periods.vwma ?? 0) + lookbackCandles + 2;
 
   let candles = await fetchCandles(market, candleUnit, needed);
   // 마지막 캔들은 아직 진행 중이라 값이 계속 바뀐다. 확정된 캔들만 판단에 쓴다.
@@ -34,17 +35,33 @@ async function analyzeMarket(market, config, state) {
   const marketState = getMarketState(state, market);
   const nextIndex = nextScanIndex(candles, marketState.lastCheckedUtc);
 
-  const signals =
+  const enabled = {
+    golden: alerts.goldenCross,
+    dead: alerts.deadCross,
+    proximity: alerts.proximity,
+    breakUp: alerts.vwmaBreakUp,
+    breakDown: alerts.vwmaBreakDown,
+  };
+
+  // 새 캔들 없음 (또는 첫 캔들뿐이라 직전과 비교 불가)
+  const found =
     nextIndex <= 0
-      ? [] // 새 캔들 없음 (또는 첫 캔들뿐이라 직전과 비교 불가)
-      : detectSignals(candles, { ...periods, proximityThresholdPct: alerts.proximityThresholdPct, fromIndex: nextIndex })
-          .filter((signal) => {
-            if (signal.type === 'golden' && !alerts.goldenCross) return false;
-            if (signal.type === 'dead' && !alerts.deadCross) return false;
-            if (signal.type === 'proximity' && !alerts.proximity) return false;
-            const already = marketState.lastSignalUtc?.[signal.type];
-            return !already || signal.candle.timeUtc > already;
-          });
+      ? []
+      : [
+          ...detectSignals(candles, { ...periods, proximityThresholdPct: alerts.proximityThresholdPct, fromIndex: nextIndex }),
+          ...(periods.vwma
+            ? detectBreakouts(candles, { period: periods.vwma, marginPct: alerts.vwmaMarginPct, fromIndex: nextIndex })
+            : []),
+        ];
+
+  const signals = found
+    .filter((signal) => {
+      if (!enabled[signal.type]) return false;
+      const already = marketState.lastSignalUtc?.[signal.type];
+      return !already || signal.candle.timeUtc > already;
+    })
+    // 같은 실행에서 여러 종류가 잡히면 일어난 순서대로 보낸다.
+    .sort((a, b) => a.index - b.index);
 
   // 상태는 전송이 끝난 뒤에 갱신한다. 여기서 미리 기록하면 전송이 실패했을 때
   // 보내지 못한 알림이 '보낸 것'으로 남아 영영 사라진다.
@@ -169,6 +186,33 @@ async function main() {
     await sendMessage(formatStatus(results, { unit: config.candleUnit, ...config.periods }), telegram);
   }
 
+  if (!dryRun) {
+    // 리포트는 이 파일을 읽으므로 리포트보다 먼저 남겨야 한다. 순서가 반대면
+    // 이번 실행에서 막 감지한 알림이 같은 실행의 리포트에서 빠진다.
+    // 밤 10시 리포트는 21:45봉을 감지하는 실행과 늘 겹치므로 매일 한 건씩 샜다.
+    // 여기서 실패해도 상태 저장까지 막으면 같은 알림이 매 실행마다 다시 나간다.
+    // 이력이 한 건 빠지는 것보다 중복 알림이 훨씬 나쁘므로 따로 처리한다.
+    try {
+      const added = await appendSignals(
+        signals.map((signal) => ({
+          ts: signal.candle.timeUtc,
+          kst: signal.candle.timeKst,
+          market: signal.market,
+          type: signal.type,
+          price: signal.candle.close,
+          short: signal.short,
+          long: signal.long,
+          line: signal.line,
+          gapPct: signal.gapPct,
+          unit: config.candleUnit,
+        })),
+      );
+      if (added > 0) console.log(`이력 ${added}건 기록`);
+    } catch (error) {
+      console.error('이력 기록 실패 (알림 상태는 정상 저장):', error.message);
+    }
+  }
+
   // 밤 10시 리포트를 GitHub 스케줄에 맡기면 건너뛸 때 같이 사라진다.
   // 실행될 때마다 보낼 때가 됐는지 스스로 확인해, 늦더라도 하루 한 번은 보낸다.
   if (!dryRun && !statusOnly) {
@@ -185,30 +229,7 @@ async function main() {
     }
   }
 
-  if (!dryRun) {
-    // 회고 리포트가 읽을 수 있도록 발생한 시그널을 월별 파일에 남긴다.
-    // 여기서 실패해도 상태 저장까지 막으면 같은 알림이 매 실행마다 다시 나간다.
-    // 이력이 한 건 빠지는 것보다 중복 알림이 훨씬 나쁘므로 따로 처리한다.
-    try {
-      const added = await appendSignals(
-        signals.map((signal) => ({
-          ts: signal.candle.timeUtc,
-          kst: signal.candle.timeKst,
-          market: signal.market,
-          type: signal.type,
-          price: signal.candle.close,
-          short: signal.short,
-          long: signal.long,
-          gapPct: signal.gapPct,
-          unit: config.candleUnit,
-        })),
-      );
-      if (added > 0) console.log(`이력 ${added}건 기록`);
-    } catch (error) {
-      console.error('이력 기록 실패 (알림 상태는 정상 저장):', error.message);
-    }
-    await saveState(state);
-  }
+  if (!dryRun) await saveState(state);
 
   for (const result of results) {
     const { market, summary, note } = result;

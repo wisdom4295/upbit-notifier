@@ -104,3 +104,12 @@ test('달이 바뀌는 기간도 양쪽 파일을 읽는다', async () => {
   assert.deepEqual(found.map((s) => s.market), ['KRW-BTC', 'KRW-ETH']);
 });
 
+
+test('거래량선 돌파도 알림 목록에 그대로 나온다', () => {
+  const breakout = { ...signal('2026-09-16T21:30:00', 'breakUp', 'KRW-BTC'), line: 103_200_000 };
+  const text = formatReport('daily', range, {
+    markets: [], series: new Map(), signals: [breakout],
+    periods: { short: 50, long: 200, vwma: 100 }, unit: 15,
+  });
+  assert.match(text, /🟢 거래량 100선 위로/);
+});

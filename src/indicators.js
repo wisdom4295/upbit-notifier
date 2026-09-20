@@ -61,6 +61,72 @@ export function detectSignals(candles, { short, long, proximityThresholdPct, fro
 }
 
 /**
+ * 거래량가중 이동평균(VWMA). 거래가 많았던 봉을 더 무겁게 쳐서 내는 평균이라
+ * "사람들이 실제로 많이 사고판 가격대"에 가깝다. 거래가 없던 구간은 null.
+ *
+ * @param {{close: number, volume: number}[]} candles 과거순 캔들
+ */
+export function vwma(candles, period) {
+  const result = new Array(candles.length).fill(null);
+  let weighted = 0;
+  let volume = 0;
+
+  for (let i = 0; i < candles.length; i += 1) {
+    const amount = candles[i].volume ?? 0;
+    weighted += candles[i].close * amount;
+    volume += amount;
+    if (i >= period) {
+      const out = candles[i - period];
+      weighted -= out.close * (out.volume ?? 0);
+      volume -= out.volume ?? 0;
+    }
+    // 그 구간에 거래가 한 건도 없었으면 평균을 낼 수 없다(0으로 나눈다).
+    if (i >= period - 1 && volume > 0) result[i] = weighted / volume;
+  }
+
+  return result;
+}
+
+/**
+ * 캔들이 거래량가중 이평선을 뚫은 지점을 찾는다.
+ *
+ * 종가가 선을 스치기만 해도 알리면 잔파동에 하루 대여섯 번씩 울린다.
+ * 그래서 선에서 marginPct만큼 확실히 벗어나야 "넘어간 것"으로 치고,
+ * 그 폭 안에 있는 동안은 직전에 있던 쪽에 그대로 머문 것으로 본다.
+ * 한번 넘어가면 반대쪽으로 그만큼 벗어나기 전까지 다시 알리지 않는다.
+ *
+ * @returns {{type: 'breakUp'|'breakDown', index: number, candle: object, line: number, gapPct: number}[]}
+ */
+export function detectBreakouts(candles, { period, marginPct = 0, fromIndex = 1 }) {
+  const line = vwma(candles, period);
+  const signals = [];
+  let side = 0; // -1 아래 · +1 위 · 0 아직 모름
+
+  // 어느 쪽에 있었는지를 알아야 '넘어갔다'를 판단할 수 있으므로 처음부터 훑는다.
+  for (let i = 0; i < candles.length; i += 1) {
+    const curr = line[i];
+    if (curr == null || curr === 0) continue;
+
+    const gapPct = ((candles[i].close - curr) / curr) * 100;
+    const next = gapPct > marginPct ? 1 : gapPct < -marginPct ? -1 : side;
+
+    // side가 0이면 어디서 왔는지 모르는 첫 판정이라 알리지 않는다.
+    if (next !== side && side !== 0 && i >= fromIndex) {
+      signals.push({
+        type: next > 0 ? 'breakUp' : 'breakDown',
+        index: i,
+        candle: candles[i],
+        line: curr,
+        gapPct,
+      });
+    }
+    side = next;
+  }
+
+  return signals;
+}
+
+/**
  * 어디서부터 다시 살펴볼지 정한다.
  *
  * - 최초 실행: 마지막 캔들만. 과거 교차를 몰아서 알리지 않기 위해서다.
@@ -75,7 +141,7 @@ export function nextScanIndex(candles, lastCheckedUtc) {
 }
 
 /** 현재 시점의 이평선 상태 요약 (메시지·대시보드 공용) */
-export function summarize(candles, { short, long }) {
+export function summarize(candles, { short, long, vwma: vwmaPeriod }) {
   const closes = candles.map((c) => c.close);
   const shortSma = sma(closes, short);
   const longSma = sma(closes, long);
@@ -86,11 +152,15 @@ export function summarize(candles, { short, long }) {
   // 장기선이 0이면 이격률이 NaN이 되어 화면에 그대로 새어 나간다.
   if (longSma[i] === 0) return null;
 
+  const line = vwmaPeriod ? vwma(candles, vwmaPeriod)[i] : null;
+
   return {
     time: candles[i].timeKst,
     price: closes[i],
     short: shortSma[i],
     long: longSma[i],
     gapPct: ((shortSma[i] - longSma[i]) / longSma[i]) * 100,
+    line,
+    linePct: line ? ((closes[i] - line) / line) * 100 : null,
   };
 }

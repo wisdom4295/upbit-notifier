@@ -84,20 +84,31 @@ const shortStamp = (timeKst) => timeKst.slice(5, 16).replace('T', ' ');
  * 첫 줄에 무슨 일인지를 담는다. 폰 알림 배너에는 첫 줄만 보이므로,
  * 코인 이름만 있으면 열어 봐야 알 수 있다.
  */
-export function formatSignal(signal, { market, unit, short, long }) {
+export function formatSignal(signal, { market, unit, short, long, vwma }) {
   const coin = market.split('-')[1];
   // 마켓 코드는 config 검증을 통과한 값이지만, 링크에 그대로 끼워 넣으면
   // 검증이 느슨해지는 날 HTML이 깨진다. URL·HTML 양쪽으로 한 번씩 막아 둔다.
   const chartUrl = escapeHtml(`https://upbit.com/exchange?code=CRIX.UPBIT.${encodeURIComponent(market)}`);
-  const { emoji, headline } = signalLabel(signal.type, { short, long });
+  const { emoji, headline } = signalLabel(signal.type, { short, long, vwma });
+
+  // 거래량선 신호는 가격과 선 하나를 견주므로 본문도 그 둘만 적는다.
+  const body = signal.line
+    ? [
+        `지금 가격  <b>${krw(signal.candle.close)}원</b>`,
+        `거래량 ${vwma}선  ${krw(signal.line)}원`,
+        `선과의 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
+      ]
+    : [
+        `지금 가격  <b>${krw(signal.candle.close)}원</b>`,
+        `${short}선  ${krw(signal.short)}원`,
+        `${long}선  ${krw(signal.long)}원`,
+        `두 선 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
+      ];
 
   return [
     `${emoji} <b>${escapeHtml(coin)}</b> · ${headline}`,
     '',
-    `지금 가격  <b>${krw(signal.candle.close)}원</b>`,
-    `${short}선  ${krw(signal.short)}원`,
-    `${long}선  ${krw(signal.long)}원`,
-    `두 선 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
+    ...body,
     '',
     `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준 (${unit}분봉)`,
     `<a href="${chartUrl}">업비트에서 보기</a>`,
@@ -105,17 +116,23 @@ export function formatSignal(signal, { market, unit, short, long }) {
 }
 
 /** 시그널이 없을 때 쓰는 현재 상태 요약(수동 실행/점검용). */
-export function formatStatus(summaries, { unit, short, long }) {
-  const lines = summaries.map(({ market, summary }) => {
+export function formatStatus(summaries, { unit, short, long, vwma }) {
+  const lines = summaries.flatMap(({ market, summary }) => {
     const coin = market.split('-')[1];
-    if (!summary) return `• ${escapeHtml(coin)}: 캔들 데이터 부족`;
+    if (!summary) return [`• ${escapeHtml(coin)}: 캔들 데이터 부족`];
+
     const side = summary.gapPct >= 0 ? '위' : '아래';
-    return `• <b>${escapeHtml(coin)}</b> ${krw(summary.price)}원 · 두 선 차이 ${Math.abs(summary.gapPct).toFixed(3)}% (${short}선이 ${side})`;
+    const row = [`• <b>${escapeHtml(coin)}</b> ${krw(summary.price)}원 · 두 선 차이 ${Math.abs(summary.gapPct).toFixed(3)}% (${short}선이 ${side})`];
+    if (summary.line) {
+      const where = summary.linePct >= 0 ? '위' : '아래';
+      row.push(`   거래량 ${vwma}선 ${krw(summary.line)}원 · 가격이 ${Math.abs(summary.linePct).toFixed(2)}% ${where}`);
+    }
+    return row;
   });
 
-  return [
-    `📊 현재 상태 (${unit}분봉 · ${short}선 / ${long}선)`,
-    '',
-    ...lines,
-  ].join('\n');
+  const title = vwma
+    ? `📊 현재 상태 (${unit}분봉 · ${short}선 / ${long}선 · 거래량 ${vwma}선)`
+    : `📊 현재 상태 (${unit}분봉 · ${short}선 / ${long}선)`;
+
+  return [title, '', ...lines].join('\n');
 }

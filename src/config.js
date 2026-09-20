@@ -5,12 +5,17 @@ const VALID_UNITS = [1, 3, 5, 10, 15, 30, 60, 240];
 const DEFAULTS = {
   markets: ['KRW-BTC'],
   candleUnit: 15,
-  periods: { short: 50, long: 200 },
+  periods: { short: 50, long: 200, vwma: 100 },
   alerts: {
     goldenCross: true,
     deadCross: true,
     proximity: true,
     proximityThresholdPct: 0.3,
+    vwmaBreakUp: true,
+    vwmaBreakDown: true,
+    // 선을 스치기만 해도 알리면 잔파동에 하루 대여섯 번 울린다.
+    // 이만큼 확실히 벗어나야 넘어간 것으로 친다.
+    vwmaMarginPct: 0.3,
   },
   lookbackCandles: 8,
   confirmOnClosedCandle: true,
@@ -47,12 +52,19 @@ export async function loadConfig(path = 'config.json') {
   if (!VALID_UNITS.includes(config.candleUnit)) {
     throw new Error(`candleUnit은 ${VALID_UNITS.join(', ')} 중 하나여야 합니다.`);
   }
-  const { short, long } = config.periods;
+  const { short, long, vwma } = config.periods;
   if (!Number.isInteger(short) || !Number.isInteger(long) || short < 2 || long <= short) {
     throw new Error('periods는 정수여야 하며 long > short > 1 이어야 합니다.');
   }
+  // 거래량선은 끌 수 있어야 하므로 없거나 0이면 계산 자체를 건너뛴다.
+  if (vwma !== undefined && vwma !== null && (!Number.isInteger(vwma) || vwma < 2)) {
+    throw new Error('periods.vwma는 2 이상의 정수여야 합니다. 끄려면 항목을 지우세요.');
+  }
   if (config.alerts.proximityThresholdPct <= 0) {
     throw new Error('proximityThresholdPct는 0보다 커야 합니다.');
+  }
+  if (config.alerts.vwmaMarginPct < 0) {
+    throw new Error('vwmaMarginPct는 0 이상이어야 합니다. (0이면 스치기만 해도 알립니다)');
   }
 
   return config;

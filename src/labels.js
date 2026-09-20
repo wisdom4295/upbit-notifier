@@ -3,7 +3,9 @@
  * 기간이 설정값이므로 라벨도 설정에서 만들어 낸다.
  * 알림(Node)과 대시보드(브라우저)가 같은 문구를 쓰도록 여기 모아 둔다.
  */
-const EMOJI = { golden: '🟢', dead: '🔴', proximity: '🟡' };
+// 색은 방향 하나만 뜻한다. 초록=위로, 빨강=아래로, 노랑=거의 닿음.
+// 무엇이 무엇을 뚫었는지는 글로 읽게 두고, 외울 것은 색 세 개로 끝낸다.
+const EMOJI = { golden: '🟢', dead: '🔴', proximity: '🟡', breakUp: '🟢', breakDown: '🔴' };
 
 /**
  * @returns {{emoji: string, brief: string, headline: string, full: string}}
@@ -11,23 +13,29 @@ const EMOJI = { golden: '🟢', dead: '🔴', proximity: '🟡' };
  *   headline = 알림 첫 줄. 폰 배너에 이 줄만 보이므로 무슨 일인지가 여기 있어야 한다.
  *   full = 문장으로 읽히는 설명
  */
-export function signalLabel(type, { short, long }) {
+export function signalLabel(type, { short, long, vwma }) {
   const brief = {
     golden: `${short}선 위로`,
     dead: `${short}선 아래로`,
     proximity: `${short}선 근접`,
+    breakUp: `거래량 ${vwma}선 위로`,
+    breakDown: `거래량 ${vwma}선 아래로`,
   }[type];
 
   const headline = {
     golden: `${short}선이 ${long}선 위로`,
     dead: `${short}선이 ${long}선 아래로`,
     proximity: `${short}선이 ${long}선에 근접`,
+    breakUp: `가격이 거래량 ${vwma}선 위로`,
+    breakDown: `가격이 거래량 ${vwma}선 아래로`,
   }[type];
 
   const full = {
     golden: `${short}선이 ${long}선을 아래에서 위로 뚫었습니다.`,
     dead: `${short}선이 ${long}선을 위에서 아래로 뚫었습니다.`,
     proximity: `${short}선이 ${long}선에 거의 닿았습니다. 곧 뚫을 수 있습니다.`,
+    breakUp: `가격이 거래량 ${vwma}선을 아래에서 위로 뚫었습니다.`,
+    breakDown: `가격이 거래량 ${vwma}선을 위에서 아래로 뚫었습니다.`,
   }[type];
 
   if (!brief) return { emoji: '', brief: type, headline: type, full: '' };
