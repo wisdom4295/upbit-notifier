@@ -27,12 +27,12 @@ test('제목에 날짜와 기준을 적는다', () => {
   assert.ok(!text.includes('거래량'), '거래량선을 안 쓰면 제목에도 없다');
 });
 
-test('거래량선을 쓰면 제목에도 적는다', () => {
+test('거래량가중선을 쓰면 제목에도 적는다', () => {
   const text = formatReport('daily', range, {
     markets: [], series: new Map(), signals: [],
-    periods: { short: 50, long: 200, vwma: 100 }, unit: 15,
+    periods: { short: 50, long: 200, vwmaDays: 100 }, unit: 15,
   });
-  assert.match(text, /50선 \/ 200선 · 거래량 100선/);
+  assert.match(text, /50선 \/ 200선 · 100일 거래량가중선/);
 });
 
 test('주간 리포트는 제목이 다르다', () => {
@@ -59,18 +59,30 @@ test('시세를 못 받은 코인은 그렇다고 적는다', () => {
   assert.match(text, /시세를 받지 못했습니다/);
 });
 
-test('아직 그 시각이 오지 않은 것은 한 줄로 모아 "아직"이라 적는다', () => {
+test('시세를 못 받은 코인은 알림 왔을 때 값만 적는다', () => {
   const text = report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC')]);
-  assert.match(text, /1시간 뒤·4시간 뒤·하루 뒤는 아직/);
+  assert.match(text, /알림 왔을 때 100원/);
+  assert.ok(!text.includes('지금은'), '견줄 현재가가 없으면 지어내지 않는다');
   assert.ok(!text.includes('—'), '읽는 사람이 뜻을 짐작해야 하는 기호는 쓰지 않는다');
 });
 
-test('알림 뒤 값은 그때 가격과 등락을 함께 적는다', () => {
-  // price 100 에서 1시간 뒤 1.234% 올랐으면 101.234원
-  const text = report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC', { 1: 1.234, 24: -2.5 })]);
-  assert.match(text, /1시간 뒤 101.234원 \(▲1.23%\)/);
-  assert.match(text, /하루 뒤 97.5원 \(▼2.5%\)/);
-  assert.match(text, /4시간 뒤는 아직/, '빠진 것만 따로 모은다');
+test('알림 왔을 때와 지금을 나란히 적는다', () => {
+  const series = new Map([['KRW-BTC', [{ ms: 1, close: 110, high: 110, low: 110 }]]]);
+  const text = report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC')], { series });
+
+  assert.match(text, /알림 왔을 때 100원/);
+  assert.match(text, /지금은 110원 · ▲10% 올랐습니다/);
+});
+
+test('내렸으면 내렸다고 적는다', () => {
+  const series = new Map([['KRW-BTC', [{ ms: 1, close: 95, high: 95, low: 95 }]]]);
+  const text = report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC')], { series });
+  assert.match(text, /지금은 95원 · ▼5% 내렸습니다/);
+});
+
+test('값이 그대로면 그대로라고 적는다', () => {
+  const series = new Map([['KRW-BTC', [{ ms: 1, close: 100, high: 100, low: 100 }]]]);
+  assert.match(report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC')], { series }), /그대로입니다/);
 });
 
 
@@ -118,11 +130,11 @@ test('달이 바뀌는 기간도 양쪽 파일을 읽는다', async () => {
 });
 
 
-test('거래량선 돌파도 알림 목록에 그대로 나온다', () => {
+test('돌파 알림도 알림 목록에 그대로 나온다', () => {
   const breakout = { ...signal('2026-09-16T21:30:00', 'breakUp', 'KRW-BTC'), line: 103_200_000 };
   const text = formatReport('daily', range, {
     markets: [], series: new Map(), signals: [breakout],
-    periods: { short: 50, long: 200, vwma: 100 }, unit: 15,
+    periods: { short: 50, long: 200, vwmaDays: 100 }, unit: 15,
   });
-  assert.match(text, /🟢 거래량 100선 위로/);
+  assert.match(text, /🟢 100일선 상향 돌파/, '목록은 좁으므로 짧은 이름으로');
 });

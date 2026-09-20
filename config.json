@@ -8,7 +8,7 @@
   "periods": {
     "short": 50,
     "long": 200,
-    "vwma": 100
+    "vwmaDays": 100
   },
   "alerts": {
     "goldenCross": true,

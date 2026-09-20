@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sma, detectSignals, summarize, nextScanIndex, vwma, detectBreakouts } from '../src/indicators.js';
+import { sma, detectSignals, summarize, nextScanIndex, vwma, detectBreakouts, dailyLineFor } from '../src/indicators.js';
 
 const toCandles = (closes) =>
   closes.map((close, i) => ({
@@ -105,7 +105,7 @@ test('새 캔들이 없으면 -1 — 훑지 않는다', () => {
   assert.equal(nextScanIndex(candles, candles.at(-1).timeUtc), -1);
 });
 
-// --- 거래량가중 이평선(거래량선) ---
+// --- 거래량가중 이평선 ---
 
 const bar = (close, volume) => ({ close, volume, timeUtc: '', timeKst: '' });
 
@@ -128,6 +128,37 @@ test('거래량이 없는 캔들도 터지지 않는다', () => {
   assert.equal(vwma([{ close: 100 }, { close: 200 }], 2).at(-1), null);
 });
 
+// --- 일봉으로 낸 선을 분봉에 맞추기 ---
+
+const day = (date, close, volume = 1) => ({ date, close, volume });
+
+test('분봉에는 그 날 직전까지 마감된 일봉으로 낸 값을 쓴다', () => {
+  // 오늘 일봉은 장중이라 계속 바뀐다. 기준선으로 쓰면 판정이 흔들린다.
+  const daily = [day('2026-09-18', 100), day('2026-09-19', 200), day('2026-09-20', 999)];
+  const candles = [
+    { timeKst: '2026-09-20T09:00:00', close: 0 },
+    { timeKst: '2026-09-20T23:45:00', close: 0 },
+  ];
+  const line = dailyLineFor(candles, daily, 2);
+  assert.deepEqual(line, [150, 150], '9/20 분봉은 9/18~9/19 일봉으로 낸 값(150)을 쓴다');
+});
+
+test('날이 바뀌면 기준선도 따라 바뀐다', () => {
+  const daily = [day('2026-09-18', 100), day('2026-09-19', 200), day('2026-09-20', 300)];
+  const candles = [
+    { timeKst: '2026-09-20T09:00:00', close: 0 },
+    { timeKst: '2026-09-21T09:00:00', close: 0 },
+  ];
+  assert.deepEqual(dailyLineFor(candles, daily, 2), [150, 250]);
+});
+
+test('일봉이 모자라면 기준선이 없다', () => {
+  const candles = [{ timeKst: '2026-09-20T09:00:00', close: 0 }];
+  assert.deepEqual(dailyLineFor(candles, [day('2026-09-19', 100)], 5), [null]);
+});
+
+// --- 돌파 판정 ---
+
 const series = (rows) =>
   rows.map(([close, volume], i) => ({
     close, volume,
@@ -135,10 +166,13 @@ const series = (rows) =>
     timeKst: `2026-09-20T${String(i).padStart(2, '0')}:00:00`,
   }));
 
-test('가격이 거래량선을 위로 뚫으면 알린다', () => {
+/** 분봉 자체로 낸 선. 판정 규칙만 시험하기 위한 편의 함수다. */
+const lineOf = (candles, period) => vwma(candles, period);
+
+test('가격이 기준선을 위로 뚫으면 알린다', () => {
   // 선 아래에 있다가 마지막 봉에서 위로 넘어간다.
   const candles = series([[110, 1], [105, 1], [100, 1], [99, 1], [130, 1]]);
-  const [signal] = detectBreakouts(candles, { period: 3, fromIndex: 1 });
+  const [signal] = detectBreakouts(candles, { line: lineOf(candles, 3), fromIndex: 1 });
   assert.equal(signal.type, 'breakUp');
   assert.equal(signal.candle.close, 130);
   assert.ok(signal.gapPct > 0, '선보다 위에 있다');
@@ -146,35 +180,37 @@ test('가격이 거래량선을 위로 뚫으면 알린다', () => {
 
 test('아래로 뚫어도 알린다', () => {
   const candles = series([[90, 1], [95, 1], [100, 1], [101, 1], [70, 1]]);
-  assert.equal(detectBreakouts(candles, { period: 3, fromIndex: 1 })[0].type, 'breakDown');
+  assert.equal(detectBreakouts(candles, { line: lineOf(candles, 3), fromIndex: 1 })[0].type, 'breakDown');
 });
 
 test('뚫고 나서 계속 위에 머무는 동안에는 다시 알리지 않는다', () => {
   const candles = series([[110, 1], [105, 1], [100, 1], [99, 1], [130, 1], [140, 1], [150, 1]]);
-  const types = detectBreakouts(candles, { period: 3, fromIndex: 1 }).map((s) => s.type);
+  const types = detectBreakouts(candles, { line: lineOf(candles, 3), fromIndex: 1 }).map((s) => s.type);
   assert.deepEqual(types, ['breakUp'], '처음 뚫은 한 번만');
 });
 
 test('줄곧 선 위에 있기만 하면 뚫은 것이 아니므로 알리지 않는다', () => {
   // 꾸준히 오르는 구간은 종가가 늘 평균보다 위다. 넘어선 순간이 없으므로 신호도 없다.
   const candles = series([[100, 1], [110, 1], [120, 1], [130, 1], [140, 1]]);
-  assert.deepEqual(detectBreakouts(candles, { period: 3, fromIndex: 1 }), []);
+  assert.deepEqual(detectBreakouts(candles, { line: lineOf(candles, 3), fromIndex: 1 }), []);
 });
 
-test('선을 채울 캔들이 모자라면 찾지 않는다', () => {
-  assert.deepEqual(detectBreakouts(series([[100, 1], [200, 1]]), { period: 5 }), []);
+test('기준선이 없는 구간은 건너뛴다', () => {
+  const candles = series([[100, 1], [200, 1]]);
+  assert.deepEqual(detectBreakouts(candles, { line: [null, null] }), []);
 });
 
 test('이미 확인한 캔들은 다시 알리지 않는다', () => {
   const candles = series([[110, 1], [105, 1], [100, 1], [99, 1], [130, 1]]);
-  assert.deepEqual(detectBreakouts(candles, { period: 3, fromIndex: 5 }), []);
+  assert.deepEqual(detectBreakouts(candles, { line: lineOf(candles, 3), fromIndex: 5 }), []);
 });
 
 test('확인 폭 안에서 오르내리는 잔파동은 걸러진다', () => {
   // 선을 0.1%쯤 넘나드는 움직임. 폭을 0.5%로 두면 넘어간 것으로 치지 않는다.
   const candles = series([[100, 1], [100, 1], [100, 1], [100.1, 1], [99.9, 1], [100.1, 1], [99.9, 1]]);
-  assert.deepEqual(detectBreakouts(candles, { period: 3, marginPct: 0.5, fromIndex: 1 }), []);
-  assert.ok(detectBreakouts(candles, { period: 3, marginPct: 0, fromIndex: 1 }).length > 0, '폭이 0이면 그대로 알린다');
+  const line = lineOf(candles, 3);
+  assert.deepEqual(detectBreakouts(candles, { line, marginPct: 0.5, fromIndex: 1 }), []);
+  assert.ok(detectBreakouts(candles, { line, marginPct: 0, fromIndex: 1 }).length > 0, '폭이 0이면 그대로 알린다');
 });
 
 test('한쪽으로 넘어가면 반대쪽으로 확실히 벗어날 때만 다시 알린다', () => {
@@ -184,17 +220,18 @@ test('한쪽으로 넘어가면 반대쪽으로 확실히 벗어날 때만 다�
     [118, 1], [119, 1],                       // 선 근처로 돌아왔지만 폭 안
     [80, 1],                                  // 아래로 확실히 벗어남
   ]);
-  const types = detectBreakouts(candles, { period: 3, marginPct: 1, fromIndex: 1 }).map((s) => s.type);
+  const types = detectBreakouts(candles, { line: lineOf(candles, 3), marginPct: 1, fromIndex: 1 })
+    .map((s) => s.type);
   assert.deepEqual(types, ['breakUp', 'breakDown']);
 });
 
-test('현재 상태 요약에 거래량선 위치도 담는다', () => {
+test('현재 상태 요약에 기준선 위치도 담는다', () => {
   const candles = Array.from({ length: 30 }, (_, i) => ({
-    close: 100 + i, volume: 1, timeUtc: '', timeKst: `2026-09-20T00:00:00`,
+    close: 100 + i, volume: 1, timeUtc: '', timeKst: '2026-09-20T00:00:00',
   }));
-  const summary = summarize(candles, { short: 5, long: 10, vwma: 10 });
-  assert.ok(summary.line > 0);
-  assert.ok(summary.linePct > 0, '오르는 중이면 가격이 거래량선 위');
+  const summary = summarize(candles, { short: 5, long: 10 }, 100);
+  assert.equal(summary.line, 100);
+  assert.ok(summary.linePct > 0, '가격이 기준선 위');
 
-  assert.equal(summarize(candles, { short: 5, long: 10 }).line, null, '설정이 없으면 계산하지 않는다');
+  assert.equal(summarize(candles, { short: 5, long: 10 }).line, null, '선이 없으면 비워 둔다');
 });

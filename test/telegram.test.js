@@ -122,10 +122,14 @@ test('거래량선 돌파 알림은 가격과 선 하나만 견준다', () => {
     line: 103_200_000,
     gapPct: 0.581,
   };
-  const text = formatSignal(signal, { market: 'KRW-BTC', unit: 15, short: 50, long: 200, vwma: 100 });
+  const text = formatSignal(signal, { market: 'KRW-BTC', unit: 15, short: 50, long: 200, vwmaDays: 100 });
 
-  assert.match(text, /^🟢 <b>BTC<\/b> · 15분봉이 거래량 100선 위로 돌파/, '첫 줄만 보고도 무슨 일인지, 어느 봉인지 안다');
-  assert.match(text, /거래량 100선  103,200,000원/);
+  assert.match(
+    text,
+    /^🟢 <b>BTC<\/b> · 15분봉 캔들이 100일 거래량가중 이동평균선 상향 돌파/,
+    '첫 줄만 보고도 무엇이 무엇을 뚫었는지 안다',
+  );
+  assert.match(text, /100일 거래량가중선  103,200,000원/);
   assert.match(text, /선과의 차이  <b>0.581%<\/b>/);
   assert.ok(!text.includes('두 선 차이'), '50선·200선 이야기는 섞지 않는다');
   assert.ok(!text.includes('200선  '), '쓰지 않는 선은 적지 않는다');
@@ -140,22 +144,22 @@ test('아래로 뚫으면 빨강으로 온다', () => {
     line: 110,
     gapPct: -9.09,
   };
-  const text = formatSignal(signal, { market: 'KRW-XRP', unit: 15, short: 50, long: 200, vwma: 100 });
-  assert.match(text, /^🔴 <b>XRP<\/b> · 15분봉이 거래량 100선 아래로 이탈/);
+  const text = formatSignal(signal, { market: 'KRW-XRP', unit: 15, short: 50, long: 200, vwmaDays: 100 });
+  assert.match(text, /^🔴 <b>XRP<\/b> · 15분봉 캔들이 100일 거래량가중 이동평균선 하향 돌파/);
   assert.match(text, /선과의 차이  <b>9.090%<\/b>/, '방향은 첫 줄이 말하므로 크기만 적는다');
 });
 
-test('현재 상태에도 거래량선 위치를 적는다', () => {
+test('현재 상태에도 기준선 위치를 적는다', () => {
   const summaries = [{
     market: 'KRW-BTC',
     summary: { price: 103_800_000, short: 103_761_000, long: 103_718_000, gapPct: 0.042, line: 103_200_000, linePct: 0.581 },
   }];
-  const text = formatStatus(summaries, { unit: 15, short: 50, long: 200, vwma: 100 });
-  assert.match(text, /거래량 100선/);
+  const text = formatStatus(summaries, { unit: 15, short: 50, long: 200, vwmaDays: 100 });
+  assert.match(text, /100일 거래량가중선 103,200,000원/);
   assert.match(text, /가격이 0.58% 위/);
 });
 
-test('거래량선을 끄면 현재 상태에도 나오지 않는다', () => {
+test('기준선을 끄면 현재 상태에도 나오지 않는다', () => {
   const summaries = [{ market: 'KRW-BTC', summary: { price: 100, short: 101, long: 100, gapPct: 1, line: null, linePct: null } }];
   const text = formatStatus(summaries, { unit: 15, short: 50, long: 200 });
   assert.ok(!text.includes('거래량'));

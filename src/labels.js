@@ -13,31 +13,30 @@ const EMOJI = { golden: '🟢', dead: '🔴', proximity: '🟡', breakUp: '🟢'
  *   headline = 알림 첫 줄. 폰 배너에 이 줄만 보이므로 무슨 일인지가 여기 있어야 한다.
  *   full = 문장으로 읽히는 설명
  */
-export function signalLabel(type, { short, long, vwma, unit }) {
+export function signalLabel(type, { short, long, vwmaDays, unit }) {
   const brief = {
     golden: `${short}선 위로`,
     dead: `${short}선 아래로`,
     proximity: `${short}선 근접`,
-    breakUp: `거래량 ${vwma}선 위로`,
-    breakDown: `거래량 ${vwma}선 아래로`,
+    breakUp: `${vwmaDays}일선 상향 돌파`,
+    breakDown: `${vwmaDays}일선 하향 돌파`,
   }[type];
 
   const headline = {
     golden: `${short}선이 ${long}선 위로`,
     dead: `${short}선이 ${long}선 아래로`,
     proximity: `${short}선이 ${long}선에 근접`,
-    // 폰 배너에는 이 줄만 보인다. 같은 코인도 어느 봉으로 보느냐에 따라
-    // 그림이 달라지므로, 열어 보지 않아도 알도록 봉 단위를 여기에 적는다.
-    breakUp: `${unit}분봉이 거래량 ${vwma}선 위로 돌파`,
-    breakDown: `${unit}분봉이 거래량 ${vwma}선 아래로 이탈`,
+    // 폰 배너에는 이 줄만 보인다. 무엇이 무엇을 뚫었는지가 여기서 다 읽혀야 한다.
+    breakUp: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선 상향 돌파`,
+    breakDown: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선 하향 돌파`,
   }[type];
 
   const full = {
     golden: `${short}선이 ${long}선을 아래에서 위로 뚫었습니다.`,
     dead: `${short}선이 ${long}선을 위에서 아래로 뚫었습니다.`,
     proximity: `${short}선이 ${long}선에 거의 닿았습니다. 곧 뚫을 수 있습니다.`,
-    breakUp: `${unit}분봉이 거래량 ${vwma}선을 아래에서 위로 뚫었습니다.`,
-    breakDown: `${unit}분봉이 거래량 ${vwma}선을 위에서 아래로 뚫었습니다.`,
+    breakUp: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선을 아래에서 위로 뚫었습니다.`,
+    breakDown: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선을 위에서 아래로 뚫었습니다.`,
   }[type];
 
   if (!brief) return { emoji: '', brief: type, headline: type, full: '' };

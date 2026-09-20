@@ -43,6 +43,25 @@ export async function fetchMarkets() {
 }
 
 /**
+ * 일봉을 오래된 순서로 반환한다. 100일선처럼 긴 기준선을 그릴 때 쓴다.
+ * 분봉으로 100일을 채우려면 9,600봉(48회 호출)이 필요하지만 일봉이면 한 번이면 된다.
+ */
+export async function fetchDailyCandles(market, count) {
+  const query = new URLSearchParams({ market, count: String(Math.min(count, MAX_COUNT_PER_REQUEST)) });
+  const page = await request(`/candles/days?${query}`);
+
+  return page
+    .map((candle) => ({
+      market,
+      date: candle.candle_date_time_kst.slice(0, 10),
+      ms: Date.parse(`${candle.candle_date_time_utc}Z`),
+      close: candle.trade_price,
+      volume: candle.candle_acc_trade_volume,
+    }))
+    .reverse(); // 최신순 → 과거순
+}
+
+/**
  * 분봉을 오래된 순서로 반환한다.
  * 업비트는 최신순 200개씩만 주므로 `to` 커서로 과거 방향으로 이어 받는다.
  */

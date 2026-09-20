@@ -88,17 +88,43 @@ export function vwma(candles, period) {
 }
 
 /**
- * 캔들이 거래량가중 이평선을 뚫은 지점을 찾는다.
+ * 일봉으로 낸 거래량가중 이평선을, 분봉 캔들 하나하나에 맞춰 늘어놓는다.
  *
- * 종가가 선을 스치기만 해도 알리면 잔파동에 하루 대여섯 번씩 울린다.
- * 그래서 선에서 marginPct만큼 확실히 벗어나야 "넘어간 것"으로 치고,
- * 그 폭 안에 있는 동안은 직전에 있던 쪽에 그대로 머문 것으로 본다.
- * 한번 넘어가면 반대쪽으로 그만큼 벗어나기 전까지 다시 알리지 않는다.
+ * 분봉 캔들이 어느 날에 속하든 그 날 **직전까지 마감된** 일봉으로 낸 값을 쓴다.
+ * 오늘 일봉은 장중이라 계속 바뀌므로 기준선으로 삼으면 판정이 흔들린다.
  *
+ * @param {{timeKst: string}[]} candles 분봉 (과거순)
+ * @param {{date: string, close: number, volume: number}[]} daily 일봉 (과거순)
+ * @returns {(number|null)[]} candles와 길이가 같은 배열
+ */
+export function dailyLineFor(candles, daily, period) {
+  const values = vwma(daily, period);
+  // (날짜, 그 날까지로 낸 값) 을 과거순으로. 분봉 날짜보다 앞선 마지막 값을 쓴다.
+  const marks = daily
+    .map((candle, i) => ({ date: candle.date, value: values[i] }))
+    .filter((mark) => mark.value != null);
+
+  let cursor = -1;
+  return candles.map((candle) => {
+    const date = candle.timeKst.slice(0, 10);
+    while (cursor + 1 < marks.length && marks[cursor + 1].date < date) cursor += 1;
+    return cursor >= 0 ? marks[cursor].value : null;
+  });
+}
+
+/**
+ * 캔들이 기준선을 뚫은 지점을 찾는다.
+ *
+ * 종가가 선을 스치기만 해도 알리면 잔파동에 여러 번 울린다. 그래서 선에서
+ * marginPct만큼 확실히 벗어나야 "넘어간 것"으로 치고, 그 폭 안에 있는 동안은
+ * 직전에 있던 쪽에 그대로 머문 것으로 본다. 한번 넘어가면 반대쪽으로 그만큼
+ * 벗어나기 전까지 다시 알리지 않는다.
+ *
+ * @param {object[]} candles 분봉 (과거순)
+ * @param {(number|null)[]} line 캔들마다의 기준선 값
  * @returns {{type: 'breakUp'|'breakDown', index: number, candle: object, line: number, gapPct: number}[]}
  */
-export function detectBreakouts(candles, { period, marginPct = 0, fromIndex = 1 }) {
-  const line = vwma(candles, period);
+export function detectBreakouts(candles, { line, marginPct = 0, fromIndex = 1 }) {
   const signals = [];
   let side = 0; // -1 아래 · +1 위 · 0 아직 모름
 
@@ -141,7 +167,7 @@ export function nextScanIndex(candles, lastCheckedUtc) {
 }
 
 /** 현재 시점의 이평선 상태 요약 (메시지·대시보드 공용) */
-export function summarize(candles, { short, long, vwma: vwmaPeriod }) {
+export function summarize(candles, { short, long }, line = null) {
   const closes = candles.map((c) => c.close);
   const shortSma = sma(closes, short);
   const longSma = sma(closes, long);
@@ -151,8 +177,6 @@ export function summarize(candles, { short, long, vwma: vwmaPeriod }) {
   if (i < 0 || shortSma[i] == null || longSma[i] == null) return null;
   // 장기선이 0이면 이격률이 NaN이 되어 화면에 그대로 새어 나간다.
   if (longSma[i] === 0) return null;
-
-  const line = vwmaPeriod ? vwma(candles, vwmaPeriod)[i] : null;
 
   return {
     time: candles[i].timeKst,

@@ -1,13 +1,10 @@
 import { readSignals } from './history.js';
 import { fetchCandles } from './upbit.js';
-import { returnAfter } from './period.js';
 import { todayRange, weekRange } from './period.js';
 import { periodMove, gapTrend } from './report-stats.js';
 import { signalLabel } from './labels.js';
 
 const MAX_LISTED = 20; // 텔레그램 한 통은 4096자 제한이 있다
-const HORIZONS = [1, 4, 24];
-const HORIZON_LABEL = { 1: '1시간 뒤', 4: '4시간 뒤', 24: '하루 뒤' };
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
 const won = (value) =>
@@ -46,19 +43,6 @@ async function loadSeries(markets, unit, fromMs) {
   return series;
 }
 
-function attachReturns(signals, series, defaultUnit) {
-  return signals.map((signal) => {
-    const candles = series.get(signal.market) ?? [];
-    const ms = Date.parse(`${signal.ts}Z`);
-    return {
-      ...signal,
-      returns: Object.fromEntries(
-        HORIZONS.map((hours) => [hours, returnAfter(candles, ms, hours, signal.price)]),
-      ),
-    };
-  });
-}
-
 function movesSection(markets, series, periods, fromMs, label) {
   const lines = [];
 
@@ -95,36 +79,30 @@ function gapSection(markets, series, periods) {
 }
 
 /**
- * 알림이 온 뒤 값이 어떻게 됐는지. 퍼센트만 적으면 무엇과 견준 값인지 와닿지 않아
- * 그때 값을 함께 적는다. 아직 그 시각이 오지 않은 것은 한 줄로 모은다.
+ * 알림 한 건을 문장으로 풀어 적는다.
+ *
+ * 1시간·4시간·하루를 따로 적으면 아직 오지 않은 칸이 늘 섞여 "아직"만 가득하다.
+ * 읽는 사람이 궁금한 것은 "그래서 지금 어떻게 됐나" 하나뿐이라 그것만 적는다.
  */
-function afterLines(signal) {
-  const lines = [];
-  const waiting = [];
+function signalBlock(signal, periods, daily, unit, nowPrice) {
+  const { emoji, brief } = signalLabel(signal.type, { ...periods, unit });
+  // 주간은 여러 날이 섞이므로 날짜까지 적어야 언제 일인지 안다.
+  const when = daily ? `${signal.kst.slice(11, 16)}` : `${signal.kst.slice(5, 10)} ${signal.kst.slice(11, 16)}`;
+  const head = `${when}  <b>${coinOf(signal.market)}</b>  ${emoji} ${brief}`;
+  const then = `     알림 왔을 때 ${won(signal.price)}원`;
 
-  for (const hours of HORIZONS) {
-    const pct = signal.returns?.[hours];
-    if (typeof pct !== 'number') {
-      waiting.push(HORIZON_LABEL[hours]);
-      continue;
-    }
-    lines.push(`     ${HORIZON_LABEL[hours]} ${won(signal.price * (1 + pct / 100))}원 (${move(pct)})`);
-  }
+  if (nowPrice == null) return `${head}\n${then}`;
 
-  if (waiting.length > 0) lines.push(`     ${waiting.join('·')}는 아직`);
-  return lines.join('\n');
+  const pct = ((nowPrice - signal.price) / signal.price) * 100;
+  const verb = pct > 0 ? '올랐습니다' : pct < 0 ? '내렸습니다' : '그대로입니다';
+  return `${head}\n${then}\n     지금은 ${won(nowPrice)}원 · ${move(pct)} ${verb}`;
 }
 
-function signalLines(signals, periods, daily, unit) {
+function signalLines(signals, periods, daily, unit, priceNow) {
   return [...signals]
     .sort((a, b) => b.kst.localeCompare(a.kst))
     .slice(0, MAX_LISTED)
-    .map((signal) => {
-      const { emoji, brief } = signalLabel(signal.type, { ...periods, unit });
-      // 주간은 여러 날이 섞이므로 날짜까지 적어야 언제 일인지 안다.
-      const when = daily ? signal.kst.slice(11, 16) : signal.kst.slice(5, 16).replace('T', ' ');
-      return `${when}  <b>${coinOf(signal.market)}</b>  ${emoji} ${brief}  ${won(signal.price)}원\n${afterLines(signal)}`;
-    })
+    .map((signal) => signalBlock(signal, periods, daily, unit, priceNow.get(signal.market) ?? null))
     .join('\n');
 }
 
@@ -141,7 +119,7 @@ export function formatReport(period, range, { markets, series, signals, periods,
     : `🗓 주간 정리 · ${range.label}`;
 
   const sections = [
-    `${title}\n${unit}분봉 · ${periods.short}선 / ${periods.long}선${periods.vwma ? ` · 거래량 ${periods.vwma}선` : ''}`,
+    `${title}\n${unit}분봉 · ${periods.short}선 / ${periods.long}선${periods.vwmaDays ? ` · ${periods.vwmaDays}일 거래량가중선` : ''}`,
     `<b>■ ${daily ? '오늘' : '이번 주'} 움직임</b>\n${movesSection(markets, series, periods, fromMs, daily ? '오늘' : '주간')}`,
   ];
 
@@ -153,8 +131,16 @@ export function formatReport(period, range, { markets, series, signals, periods,
     return sections.join('\n\n');
   }
 
+  // 알림이 온 뒤 지금까지 어떻게 됐는지를 보려면 종목별 현재가가 필요하다.
+  const priceNow = new Map(
+    [...series].map(([market, candles]) => [market, candles.at(-1)?.close ?? null]),
+  );
+
   const rest = signals.length > MAX_LISTED ? `\n…외 ${signals.length - MAX_LISTED}건` : '';
-  sections.push(`<b>■ 받은 알림 ${signals.length}건</b>\n${signalLines(signals, periods, daily, unit)}${rest}`);
+  sections.push(
+    `<b>■ 받은 알림 ${signals.length}건</b> <i>(값은 리포트 보내는 지금 기준)</i>\n` +
+    `${signalLines(signals, periods, daily, unit, priceNow)}${rest}`,
+  );
 
   return sections.join('\n\n');
 }
@@ -164,7 +150,7 @@ export async function buildReport(period, config, now = Date.now()) {
   const fromMs = Date.parse(`${range.from}+09:00`);
 
   const series = await loadSeries(config.markets, config.candleUnit, fromMs);
-  const signals = attachReturns(await readSignals(range), series, config.candleUnit);
+  const signals = await readSignals(range);
 
   return {
     range,

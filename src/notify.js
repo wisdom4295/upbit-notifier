@@ -1,6 +1,6 @@
 import { loadConfig, saveMarkets } from './config.js';
-import { fetchCandles, fetchMarkets } from './upbit.js';
-import { detectSignals, detectBreakouts, summarize, nextScanIndex } from './indicators.js';
+import { fetchCandles, fetchDailyCandles, fetchMarkets } from './upbit.js';
+import { detectSignals, detectBreakouts, dailyLineFor, summarize, nextScanIndex } from './indicators.js';
 import { formatSignal, formatStatus, sendMessage, fetchUpdates } from './telegram.js';
 import { loadState, saveState, getMarketState, setMarketState } from './state.js';
 import { appendSignals } from './history.js';
@@ -20,14 +20,25 @@ const telegram = {
 
 async function analyzeMarket(market, config, state) {
   const { periods, candleUnit, lookbackCandles, alerts, confirmOnClosedCandle } = config;
-  // 거래량선이 200선보다 길 수도 있으니 둘 중 긴 쪽을 기준으로 받아 온다.
-  const needed = Math.max(periods.long, periods.vwma ?? 0) + lookbackCandles + 2;
+  const needed = periods.long + lookbackCandles + 2;
 
   let candles = await fetchCandles(market, candleUnit, needed);
   // 마지막 캔들은 아직 진행 중이라 값이 계속 바뀐다. 확정된 캔들만 판단에 쓴다.
   if (confirmOnClosedCandle) candles = candles.slice(0, -1);
 
-  const summary = summarize(candles, periods);
+  // 100일선은 일봉으로 낸다. 분봉으로 100일을 채우려면 9,600봉이 필요하다.
+  let line = new Array(candles.length).fill(null);
+  if (periods.vwmaDays) {
+    try {
+      const daily = await fetchDailyCandles(market, periods.vwmaDays + 2);
+      line = dailyLineFor(candles, daily, periods.vwmaDays);
+    } catch (error) {
+      // 기준선을 못 받아도 50선·200선 알림은 그대로 나가야 한다.
+      console.error(`[${market}] 일봉 조회 실패 (거래량가중선 건너뜀):`, error.message);
+    }
+  }
+
+  const summary = summarize(candles, periods, line.at(-1) ?? null);
   if (candles.length <= periods.long) {
     return { market, summary: null, signals: [], note: `캔들 ${candles.length}개로 MA${periods.long} 계산 불가` };
   }
@@ -49,9 +60,7 @@ async function analyzeMarket(market, config, state) {
       ? []
       : [
           ...detectSignals(candles, { ...periods, proximityThresholdPct: alerts.proximityThresholdPct, fromIndex: nextIndex }),
-          ...(periods.vwma
-            ? detectBreakouts(candles, { period: periods.vwma, marginPct: alerts.vwmaMarginPct, fromIndex: nextIndex })
-            : []),
+          ...detectBreakouts(candles, { line, marginPct: alerts.vwmaMarginPct, fromIndex: nextIndex }),
         ];
 
   const signals = found

@@ -33,24 +33,3 @@ export function weekRange(epochMs = Date.now()) {
     label: `${monday} ~ ${shiftDate(nextMonday, -1)}`,
   };
 }
-
-/**
- * 시그널 발생 후 N시간 뒤 수익률(%).
- * 아직 그 시점이 오지 않았거나 캔들이 없으면 null.
- *
- * @param {{ms: number, close: number}[]} series 과거순 캔들
- */
-export function returnAfter(series, signalMs, hours, basePrice) {
-  const target = signalMs + hours * 60 * 60 * 1000;
-  if (series.length === 0 || target > series.at(-1).ms) return null;
-
-  // target 이하인 마지막 캔들 = 그 시점의 가격
-  let found = null;
-  for (const candle of series) {
-    if (candle.ms > target) break;
-    found = candle;
-  }
-  if (!found || !basePrice) return null;
-
-  return ((found.close - basePrice) / basePrice) * 100;
-}
