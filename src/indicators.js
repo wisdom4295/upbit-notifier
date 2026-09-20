@@ -166,8 +166,12 @@ export function nextScanIndex(candles, lastCheckedUtc) {
   return candles.findIndex((candle) => candle.timeUtc > lastCheckedUtc);
 }
 
-/** 현재 시점의 이평선 상태 요약 (메시지·대시보드 공용) */
-export function summarize(candles, { short, long }, line = null) {
+/**
+ * 지금 상태 요약. 선은 일봉으로 내고, 지금 값과 거래량가중선은 밖에서 받는다.
+ * @param {{price?: number, line?: number|null}} now
+ */
+export function summarize(daily, { short, long }, now = {}) {
+  const candles = daily;
   const closes = candles.map((c) => c.close);
   const shortSma = sma(closes, short);
   const longSma = sma(closes, long);
@@ -178,13 +182,16 @@ export function summarize(candles, { short, long }, line = null) {
   // 장기선이 0이면 이격률이 NaN이 되어 화면에 그대로 새어 나간다.
   if (longSma[i] === 0) return null;
 
+  const price = now.price ?? closes[i];
+  const line = now.line ?? null;
+
   return {
     time: candles[i].timeKst,
-    price: closes[i],
+    price,
     short: shortSma[i],
     long: longSma[i],
     gapPct: ((shortSma[i] - longSma[i]) / longSma[i]) * 100,
     line,
-    linePct: line ? ((closes[i] - line) / line) * 100 : null,
+    linePct: line ? ((price - line) / line) * 100 : null,
   };
 }

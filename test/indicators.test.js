@@ -225,13 +225,16 @@ test('한쪽으로 넘어가면 반대쪽으로 확실히 벗어날 때만 다�
   assert.deepEqual(types, ['breakUp', 'breakDown']);
 });
 
-test('현재 상태 요약에 기준선 위치도 담는다', () => {
-  const candles = Array.from({ length: 30 }, (_, i) => ({
+test('현재 상태 요약은 일봉으로 선을 내고 지금 값은 밖에서 받는다', () => {
+  const daily = Array.from({ length: 30 }, (_, i) => ({
     close: 100 + i, volume: 1, timeUtc: '', timeKst: '2026-09-20T00:00:00',
   }));
-  const summary = summarize(candles, { short: 5, long: 10 }, 100);
+  const summary = summarize(daily, { short: 5, long: 10 }, { price: 200, line: 100 });
+  assert.equal(summary.price, 200, '분봉에서 받은 지금 값을 쓴다');
   assert.equal(summary.line, 100);
-  assert.ok(summary.linePct > 0, '가격이 기준선 위');
+  assert.equal(summary.linePct, 100, '지금 값이 기준선의 두 배면 +100%');
 
-  assert.equal(summarize(candles, { short: 5, long: 10 }).line, null, '선이 없으면 비워 둔다');
+  const bare = summarize(daily, { short: 5, long: 10 });
+  assert.equal(bare.line, null, '선이 없으면 비워 둔다');
+  assert.equal(bare.price, 129, '지금 값을 안 주면 마지막 일봉 종가를 쓴다');
 });

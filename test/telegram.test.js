@@ -74,20 +74,20 @@ test('첫 줄에 코인과 무슨 일인지가 함께 있다', () => {
   // 폰 알림 배너에는 첫 줄만 보인다. 코인 이름만 있으면 열어 봐야 안다.
   const first = formatSignal(signal(), context).split('\n')[0];
   assert.match(first, /XRP/);
-  assert.match(first, /50선이 200선 아래로/);
+  assert.match(first, /50일 이동평균선이 200일 이동평균선 아래로/);
 });
 
 test('교차 방향이 첫 줄에서 갈린다', () => {
   const up = formatSignal(signal({ type: 'golden', gapPct: 0.042 }), context).split('\n')[0];
-  assert.match(up, /50선이 200선 위로/);
+  assert.match(up, /50일 이동평균선이 200일 이동평균선 위로/);
   const near = formatSignal(signal({ type: 'proximity', gapPct: 0.31 }), context).split('\n')[0];
   assert.match(near, /근접/);
 });
 
 test('기간을 바꾸면 문구의 숫자도 따라간다', () => {
   const text = formatSignal(signal(), { ...context, short: 20, long: 60 });
-  assert.match(text, /20선이 60선 아래로/);
-  assert.match(text, /20선 {2}1,891원/);
+  assert.match(text, /20일 이동평균선이 60일 이동평균선 아래로/);
+  assert.match(text, /20일 이동평균선 {2}1,891원/);
 });
 
 test('두 선 차이는 부호 없이 크기만 보여 준다', () => {
@@ -98,12 +98,12 @@ test('두 선 차이는 부호 없이 크기만 보여 준다', () => {
 });
 
 test('시각은 연도와 초를 빼고 짧게 적는다', () => {
-  assert.match(formatSignal(signal(), context), /09-16 05:00 기준 \(15분봉\)/);
+  assert.match(formatSignal(signal(), context), /2026-09-16 일봉 마감 기준/);
 });
 
 test('메시지에 HTML 특수문자가 들어가도 태그로 새지 않는다', () => {
   const text = formatSignal(
-    signal({ candle: { close: 1, timeKst: '2026-09-16T05:<b>0</b>' } }),
+    signal({ candle: { close: 1, timeKst: '<b>2026-09-16T05:00' } }),
     { ...context, market: 'KRW-<script>' },
   );
   assert.ok(!text.includes('<script>'), '코인 코드가 이스케이프된다');
@@ -129,7 +129,7 @@ test('거래량선 돌파 알림은 가격과 선 하나만 견준다', () => {
     /^🟢 <b>BTC<\/b> · 15분봉 캔들이 100일 거래량가중 이동평균선 상향 돌파/,
     '첫 줄만 보고도 무엇이 무엇을 뚫었는지 안다',
   );
-  assert.match(text, /100일 거래량가중선  103,200,000원/);
+  assert.match(text, /100일 거래량가중 이동평균선  103,200,000원/);
   assert.match(text, /선과의 차이  <b>0.581%<\/b>/);
   assert.ok(!text.includes('두 선 차이'), '50선·200선 이야기는 섞지 않는다');
   assert.ok(!text.includes('200선  '), '쓰지 않는 선은 적지 않는다');
@@ -156,7 +156,7 @@ test('현재 상태에도 기준선 위치를 적는다', () => {
   }];
   const text = formatStatus(summaries, { unit: 15, short: 50, long: 200, vwmaDays: 100 });
   assert.match(text, /100일 거래량가중선 103,200,000원/);
-  assert.match(text, /가격이 0.58% 위/);
+  assert.match(text, /현재가가 0.58% 위/);
 });
 
 test('기준선을 끄면 현재 상태에도 나오지 않는다', () => {

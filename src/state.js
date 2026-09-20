@@ -24,7 +24,7 @@ export async function saveState(state, path = 'state.json') {
 }
 
 export function getMarketState(state, market) {
-  return state.markets[market] ?? { lastCheckedUtc: null, lastSignalUtc: {} };
+  return state.markets[market] ?? { lastCheckedUtc: null, lastDailyUtc: null, lastSignalUtc: {} };
 }
 
 export function setMarketState(state, market, value) {

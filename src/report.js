@@ -1,5 +1,5 @@
 import { readSignals } from './history.js';
-import { fetchCandles } from './upbit.js';
+import { fetchCandles, fetchDailyCandles } from './upbit.js';
 import { todayRange, weekRange } from './period.js';
 import { periodMove, gapTrend } from './report-stats.js';
 import { signalLabel } from './labels.js';
@@ -27,13 +27,12 @@ function koreanDate(isoDate) {
   return `${month}월 ${day}일 (${weekday})`;
 }
 
-/** 감시 중인 코인 전부의 시세를 받아 온다. 알림이 없던 코인도 움직임은 알아야 한다. */
+/** 기간 안의 분봉. 그날(그 주) 얼마나 움직였는지와 지금 값에 쓴다. */
 async function loadSeries(markets, unit, fromMs) {
   const series = new Map();
   for (const market of markets) {
     const span = Date.now() - fromMs;
-    // 200선을 계산하려면 기간 앞쪽으로 200봉이 더 필요하다.
-    const needed = Math.ceil(span / (unit * 60_000)) + 220;
+    const needed = Math.ceil(span / (unit * 60_000)) + 4;
     try {
       series.set(market, await fetchCandles(market, unit, Math.min(needed, 1000)));
     } catch {
@@ -41,6 +40,19 @@ async function loadSeries(markets, unit, fromMs) {
     }
   }
   return series;
+}
+
+/** 일봉. 50일선·200일선이 지금 어디 있는지에 쓴다. */
+async function loadDaily(markets, longestDays) {
+  const daily = new Map();
+  for (const market of markets) {
+    try {
+      daily.set(market, await fetchDailyCandles(market, longestDays + 30));
+    } catch {
+      daily.set(market, []);
+    }
+  }
+  return daily;
 }
 
 function movesSection(markets, series, periods, fromMs, label) {
@@ -60,11 +72,13 @@ function movesSection(markets, series, periods, fromMs, label) {
   return lines.join('\n');
 }
 
-function gapSection(markets, series, periods) {
+function gapSection(markets, dailyCandles, periods) {
   const { short, long } = periods;
 
+  // 한 달 전과 견줘 두 선이 좁혀지는 중인지 본다. 일봉 기준이라 하루로는 거의 안 움직인다.
+  const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const rows = markets
-    .map((market) => ({ market, trend: gapTrend(series.get(market) ?? [], periods, Date.now() - 24 * 60 * 60 * 1000) }))
+    .map((market) => ({ market, trend: gapTrend(dailyCandles.get(market) ?? [], periods, monthAgo) }))
     .filter((row) => row.trend)
     // 교차에 가까운 종목이 위로. 다음에 주목할 것이 먼저 보여야 한다.
     .sort((a, b) => Math.abs(a.trend.gapPct) - Math.abs(b.trend.gapPct));
@@ -73,7 +87,7 @@ function gapSection(markets, series, periods) {
     .map(({ market, trend }) => {
       const side = trend.gapPct >= 0 ? '위' : '아래';
       const drift = trend.closing === null ? '' : trend.closing ? ' · 좁혀지는 중' : ' · 벌어지는 중';
-      return `<b>${coinOf(market)}</b>  ${short}선이 ${long}선 ${side} ${Math.abs(trend.gapPct).toFixed(2)}%${drift}`;
+      return `<b>${coinOf(market)}</b>  ${short}일선이 ${long}일선 ${side} ${Math.abs(trend.gapPct).toFixed(2)}%${drift}`;
     })
     .join('\n');
 }
@@ -111,7 +125,7 @@ function signalLines(signals, periods, daily, unit, priceNow) {
  * 알림 건수를 세는 대신, 투자하는 쪽에서 볼 것만 담는다.
  * 얼마나 움직였나 → 지금 두 선이 어디 있나 → 무슨 알림이 왔나.
  */
-export function formatReport(period, range, { markets, series, signals, periods, unit }) {
+export function formatReport(period, range, { markets, series, dailyCandles = new Map(), signals, periods, unit }) {
   const daily = period === 'daily';
   const fromMs = Date.parse(`${range.from}+09:00`);
   const title = daily
@@ -119,11 +133,11 @@ export function formatReport(period, range, { markets, series, signals, periods,
     : `🗓 주간 정리 · ${range.label}`;
 
   const sections = [
-    `${title}\n${unit}분봉 · ${periods.short}선 / ${periods.long}선${periods.vwmaDays ? ` · ${periods.vwmaDays}일 거래량가중선` : ''}`,
+    `${title}\n${periods.short}일선 / ${periods.long}일선${periods.vwmaDays ? ` · ${periods.vwmaDays}일 거래량가중선` : ''}`,
     `<b>■ ${daily ? '오늘' : '이번 주'} 움직임</b>\n${movesSection(markets, series, periods, fromMs, daily ? '오늘' : '주간')}`,
   ];
 
-  const gaps = gapSection(markets, series, periods);
+  const gaps = gapSection(markets, dailyCandles, periods);
   if (gaps) sections.push(`<b>■ 지금 두 선</b>\n${gaps}`);
 
   if (signals.length === 0) {
@@ -150,6 +164,7 @@ export async function buildReport(period, config, now = Date.now()) {
   const fromMs = Date.parse(`${range.from}+09:00`);
 
   const series = await loadSeries(config.markets, config.candleUnit, fromMs);
+  const dailyCandles = await loadDaily(config.markets, config.periods.long);
   const signals = await readSignals(range);
 
   return {
@@ -158,6 +173,7 @@ export async function buildReport(period, config, now = Date.now()) {
     text: formatReport(period, range, {
       markets: config.markets,
       series,
+      dailyCandles,
       signals,
       periods: config.periods,
       unit: config.candleUnit,

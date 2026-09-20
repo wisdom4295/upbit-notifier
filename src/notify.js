@@ -18,33 +18,30 @@ const telegram = {
   dryRun,
 };
 
+/**
+ * 한 종목을 살펴 보낼 알림을 고른다.
+ *
+ * 선은 모두 **일봉**으로 낸다. 50일·200일·100일은 날짜 단위이지 봉 개수가 아니다.
+ * 분봉은 두 가지에만 쓴다 — 지금 값, 그리고 캔들이 100일 거래량가중선을 뚫는 순간.
+ */
 async function analyzeMarket(market, config, state) {
   const { periods, candleUnit, lookbackCandles, alerts, confirmOnClosedCandle } = config;
-  const needed = periods.long + lookbackCandles + 2;
+  const marketState = getMarketState(state, market);
 
-  let candles = await fetchCandles(market, candleUnit, needed);
-  // 마지막 캔들은 아직 진행 중이라 값이 계속 바뀐다. 확정된 캔들만 판단에 쓴다.
+  // 교차를 직전 값과 견주려면 선을 그릴 일수보다 하루라도 더 있어야 한다.
+  const daysNeeded = Math.max(periods.long, periods.vwmaDays ?? 0) + lookbackCandles + 2;
+  let daily = await fetchDailyCandles(market, daysNeeded);
+  // 오늘 일봉은 장중이라 계속 바뀐다. 마감된 날만 판단에 쓴다.
+  if (confirmOnClosedCandle) daily = daily.slice(0, -1);
+
+  // 분봉은 지금 값과 돌파 감지에만 쓴다. 하루치면 충분하다.
+  const minuteCount = Math.max(lookbackCandles + 2, Math.ceil(1440 / candleUnit));
+  let candles = await fetchCandles(market, candleUnit, minuteCount);
   if (confirmOnClosedCandle) candles = candles.slice(0, -1);
 
-  // 100일선은 일봉으로 낸다. 분봉으로 100일을 채우려면 9,600봉이 필요하다.
-  let line = new Array(candles.length).fill(null);
-  if (periods.vwmaDays) {
-    try {
-      const daily = await fetchDailyCandles(market, periods.vwmaDays + 2);
-      line = dailyLineFor(candles, daily, periods.vwmaDays);
-    } catch (error) {
-      // 기준선을 못 받아도 50선·200선 알림은 그대로 나가야 한다.
-      console.error(`[${market}] 일봉 조회 실패 (거래량가중선 건너뜀):`, error.message);
-    }
+  if (daily.length <= periods.long || candles.length === 0) {
+    return { market, summary: null, signals: [], note: `일봉 ${daily.length}개로 ${periods.long}일선 계산 불가` };
   }
-
-  const summary = summarize(candles, periods, line.at(-1) ?? null);
-  if (candles.length <= periods.long) {
-    return { market, summary: null, signals: [], note: `캔들 ${candles.length}개로 MA${periods.long} 계산 불가` };
-  }
-
-  const marketState = getMarketState(state, market);
-  const nextIndex = nextScanIndex(candles, marketState.lastCheckedUtc);
 
   const enabled = {
     golden: alerts.goldenCross,
@@ -54,27 +51,51 @@ async function analyzeMarket(market, config, state) {
     breakDown: alerts.vwmaBreakDown,
   };
 
-  // 새 캔들 없음 (또는 첫 캔들뿐이라 직전과 비교 불가)
-  const found =
-    nextIndex <= 0
+  // ① 50일선과 200일선의 교차·근접 — 일봉끼리 견준다. 하루에 한 번 값이 바뀐다.
+  const nextDay = nextScanIndex(daily, marketState.lastDailyUtc);
+  const crosses =
+    nextDay <= 0
       ? []
-      : [
-          ...detectSignals(candles, { ...periods, proximityThresholdPct: alerts.proximityThresholdPct, fromIndex: nextIndex }),
-          ...detectBreakouts(candles, { line, marginPct: alerts.vwmaMarginPct, fromIndex: nextIndex }),
-        ];
+      : detectSignals(daily, {
+          ...periods,
+          proximityThresholdPct: alerts.proximityThresholdPct,
+          fromIndex: nextDay,
+        });
 
-  const signals = found
+  // ② 분봉 캔들이 100일 거래량가중선을 뚫는 순간 — 분 단위로 반응한다.
+  const line = periods.vwmaDays
+    ? dailyLineFor(candles, daily, periods.vwmaDays)
+    : new Array(candles.length).fill(null);
+  const nextMinute = nextScanIndex(candles, marketState.lastCheckedUtc);
+  const breakouts =
+    nextMinute <= 0
+      ? []
+      : detectBreakouts(candles, { line, marginPct: alerts.vwmaMarginPct, fromIndex: nextMinute });
+
+  const signals = [...crosses, ...breakouts]
     .filter((signal) => {
       if (!enabled[signal.type]) return false;
       const already = marketState.lastSignalUtc?.[signal.type];
       return !already || signal.candle.timeUtc > already;
     })
-    // 같은 실행에서 여러 종류가 잡히면 일어난 순서대로 보낸다.
-    .sort((a, b) => a.index - b.index);
+    // 여러 종류가 한꺼번에 잡히면 일어난 순서대로 보낸다.
+    .sort((a, b) => a.candle.timeUtc.localeCompare(b.candle.timeUtc));
+
+  const summary = summarize(daily, periods, {
+    price: candles.at(-1).close,
+    line: line.at(-1) ?? null,
+  });
 
   // 상태는 전송이 끝난 뒤에 갱신한다. 여기서 미리 기록하면 전송이 실패했을 때
   // 보내지 못한 알림이 '보낸 것'으로 남아 영영 사라진다.
-  return { market, summary, signals, marketState, checkedUtc: candles.at(-1).timeUtc };
+  return {
+    market,
+    summary,
+    signals,
+    marketState,
+    checkedUtc: candles.at(-1).timeUtc,
+    checkedDailyUtc: daily.at(-1).timeUtc,
+  };
 }
 
 /**
@@ -187,6 +208,7 @@ async function main() {
     // 이미 보낸 건은 lastSignalUtc가 막아 주므로 중복되지 않는다.
     if (!sendFailures.has(result.market)) {
       result.marketState.lastCheckedUtc = result.checkedUtc;
+      result.marketState.lastDailyUtc = result.checkedDailyUtc;
     }
     setMarketState(state, result.market, result.marketState);
   }

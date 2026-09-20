@@ -91,24 +91,24 @@ export function formatSignal(signal, { market, unit, short, long, vwmaDays }) {
   const chartUrl = escapeHtml(`https://upbit.com/exchange?code=CRIX.UPBIT.${encodeURIComponent(market)}`);
   const { emoji, headline } = signalLabel(signal.type, { short, long, vwmaDays, unit });
 
-  // 거래량선 신호는 가격과 선 하나를 견주므로 본문도 그 둘만 적는다.
+  // 거래량가중선 신호는 가격과 선 하나를 견주므로 본문도 그 둘만 적는다.
   const body = signal.line
     ? [
-        `지금 가격  <b>${krw(signal.candle.close)}원</b>`,
-        `${vwmaDays}일 거래량가중선  ${krw(signal.line)}원`,
+        `현재가  <b>${krw(signal.candle.close)}원</b>`,
+        `${vwmaDays}일 거래량가중 이동평균선  ${krw(signal.line)}원`,
         `선과의 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
       ]
     : [
-        `지금 가격  <b>${krw(signal.candle.close)}원</b>`,
-        `${short}선  ${krw(signal.short)}원`,
-        `${long}선  ${krw(signal.long)}원`,
+        `현재가  <b>${krw(signal.candle.close)}원</b>`,
+        `${short}일 이동평균선  ${krw(signal.short)}원`,
+        `${long}일 이동평균선  ${krw(signal.long)}원`,
         `두 선 차이  <b>${Math.abs(signal.gapPct).toFixed(3)}%</b>`,
       ];
 
-  // 첫 줄이 이미 봉 단위를 말했으면 꼬리에서 되풀이하지 않는다.
+  // 교차는 일봉끼리, 돌파는 분봉 캔들이 낸 신호다. 무엇을 보고 판단했는지 적는다.
   const stamp = signal.line
-    ? `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준`
-    : `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준 (${unit}분봉)`;
+    ? `${escapeHtml(shortStamp(signal.candle.timeKst))} 기준` // 첫 줄이 이미 분봉이라 말했다
+    : `${escapeHtml(String(signal.candle.timeKst).slice(0, 10))} 일봉 마감 기준`;
 
   return [
     `${emoji} <b>${escapeHtml(coin)}</b> · ${headline}`,
@@ -127,17 +127,20 @@ export function formatStatus(summaries, { unit, short, long, vwmaDays }) {
     if (!summary) return [`• ${escapeHtml(coin)}: 캔들 데이터 부족`];
 
     const side = summary.gapPct >= 0 ? '위' : '아래';
-    const row = [`• <b>${escapeHtml(coin)}</b> ${krw(summary.price)}원 · 두 선 차이 ${Math.abs(summary.gapPct).toFixed(3)}% (${short}선이 ${side})`];
+    const row = [
+      `• <b>${escapeHtml(coin)}</b> ${krw(summary.price)}원`,
+      `   ${short}일선 ${krw(summary.short)}원 · ${long}일선 ${krw(summary.long)}원 · 차이 ${Math.abs(summary.gapPct).toFixed(2)}% (${short}일선이 ${side})`,
+    ];
     if (summary.line) {
       const where = summary.linePct >= 0 ? '위' : '아래';
-      row.push(`   ${vwmaDays}일 거래량가중선 ${krw(summary.line)}원 · 가격이 ${Math.abs(summary.linePct).toFixed(2)}% ${where}`);
+      row.push(`   ${vwmaDays}일 거래량가중선 ${krw(summary.line)}원 · 현재가가 ${Math.abs(summary.linePct).toFixed(2)}% ${where}`);
     }
     return row;
   });
 
   const title = vwmaDays
-    ? `📊 현재 상태 (${unit}분봉 · ${short}선 / ${long}선 · ${vwmaDays}일 거래량가중선)`
-    : `📊 현재 상태 (${unit}분봉 · ${short}선 / ${long}선)`;
+    ? `📊 현재 상태 (${short}일선 / ${long}일선 · ${vwmaDays}일 거래량가중선)`
+    : `📊 현재 상태 (${short}일선 / ${long}일선)`;
 
   return [title, '', ...lines].join('\n');
 }

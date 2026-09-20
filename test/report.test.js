@@ -23,7 +23,7 @@ const candles = (closes, startMs = Date.parse('2026-09-16T00:00:00+09:00')) =>
 test('제목에 날짜와 기준을 적는다', () => {
   const text = report('daily', []);
   assert.match(text, /9월 16일/);
-  assert.match(text, /50선 \/ 200선/);
+  assert.match(text, /50일선 \/ 200일선/);
   assert.ok(!text.includes('거래량'), '거래량선을 안 쓰면 제목에도 없다');
 });
 
@@ -32,7 +32,7 @@ test('거래량가중선을 쓰면 제목에도 적는다', () => {
     markets: [], series: new Map(), signals: [],
     periods: { short: 50, long: 200, vwmaDays: 100 }, unit: 15,
   });
-  assert.match(text, /50선 \/ 200선 · 100일 거래량가중선/);
+  assert.match(text, /50일선 \/ 200일선 · 100일 거래량가중선/);
 });
 
 test('주간 리포트는 제목이 다르다', () => {
@@ -136,5 +136,5 @@ test('돌파 알림도 알림 목록에 그대로 나온다', () => {
     markets: [], series: new Map(), signals: [breakout],
     periods: { short: 50, long: 200, vwmaDays: 100 }, unit: 15,
   });
-  assert.match(text, /🟢 100일선 상향 돌파/, '목록은 좁으므로 짧은 이름으로');
+  assert.match(text, /🟢 100일 거래량가중선 상향 돌파/);
 });

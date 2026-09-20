@@ -14,27 +14,28 @@ const EMOJI = { golden: '🟢', dead: '🔴', proximity: '🟡', breakUp: '🟢'
  *   full = 문장으로 읽히는 설명
  */
 export function signalLabel(type, { short, long, vwmaDays, unit }) {
+  // 좁은 칸(리포트 목록)에서는 짧게, 알림 첫 줄에서는 또박또박.
   const brief = {
-    golden: `${short}선 위로`,
-    dead: `${short}선 아래로`,
-    proximity: `${short}선 근접`,
-    breakUp: `${vwmaDays}일선 상향 돌파`,
-    breakDown: `${vwmaDays}일선 하향 돌파`,
+    golden: `${short}일선 위로`,
+    dead: `${short}일선 아래로`,
+    proximity: `${short}일선 근접`,
+    breakUp: `${vwmaDays}일 거래량가중선 상향 돌파`,
+    breakDown: `${vwmaDays}일 거래량가중선 하향 돌파`,
   }[type];
 
   const headline = {
-    golden: `${short}선이 ${long}선 위로`,
-    dead: `${short}선이 ${long}선 아래로`,
-    proximity: `${short}선이 ${long}선에 근접`,
+    golden: `${short}일 이동평균선이 ${long}일 이동평균선 위로`,
+    dead: `${short}일 이동평균선이 ${long}일 이동평균선 아래로`,
+    proximity: `${short}일 이동평균선이 ${long}일 이동평균선에 근접`,
     // 폰 배너에는 이 줄만 보인다. 무엇이 무엇을 뚫었는지가 여기서 다 읽혀야 한다.
     breakUp: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선 상향 돌파`,
     breakDown: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선 하향 돌파`,
   }[type];
 
   const full = {
-    golden: `${short}선이 ${long}선을 아래에서 위로 뚫었습니다.`,
-    dead: `${short}선이 ${long}선을 위에서 아래로 뚫었습니다.`,
-    proximity: `${short}선이 ${long}선에 거의 닿았습니다. 곧 뚫을 수 있습니다.`,
+    golden: `${short}일 이동평균선이 ${long}일 이동평균선을 아래에서 위로 뚫었습니다.`,
+    dead: `${short}일 이동평균선이 ${long}일 이동평균선을 위에서 아래로 뚫었습니다.`,
+    proximity: `${short}일 이동평균선이 ${long}일 이동평균선에 거의 닿았습니다. 곧 뚫을 수 있습니다.`,
     breakUp: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선을 아래에서 위로 뚫었습니다.`,
     breakDown: `${unit}분봉 캔들이 ${vwmaDays}일 거래량가중 이동평균선을 위에서 아래로 뚫었습니다.`,
   }[type];

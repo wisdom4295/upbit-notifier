@@ -43,19 +43,38 @@ export async function fetchMarkets() {
 }
 
 /**
- * 일봉을 오래된 순서로 반환한다. 100일선처럼 긴 기준선을 그릴 때 쓴다.
- * 분봉으로 100일을 채우려면 9,600봉(48회 호출)이 필요하지만 일봉이면 한 번이면 된다.
+ * 일봉을 오래된 순서로 반환한다. 50일선·200일선·100일 거래량가중선의 재료다.
+ * 분봉으로 200일을 채우려면 19,200봉(96회 호출)이 필요하지만 일봉이면 두 번이면 된다.
  */
 export async function fetchDailyCandles(market, count) {
-  const query = new URLSearchParams({ market, count: String(Math.min(count, MAX_COUNT_PER_REQUEST)) });
-  const page = await request(`/candles/days?${query}`);
+  const collected = [];
+  let cursor = null;
 
-  return page
+  while (collected.length < count) {
+    const remaining = Math.min(MAX_COUNT_PER_REQUEST, count - collected.length);
+    const query = new URLSearchParams({ market, count: String(remaining) });
+    if (cursor) query.set('to', cursor);
+
+    const page = await request(`/candles/days?${query}`);
+    if (page.length === 0) break; // 상장 직후 등 과거가 더 없는 경우
+
+    collected.push(...page);
+    cursor = `${page.at(-1).candle_date_time_utc}Z`;
+
+    if (page.length < remaining) break;
+    if (collected.length < count) await sleep(REQUEST_GAP_MS);
+  }
+
+  return collected
     .map((candle) => ({
       market,
       date: candle.candle_date_time_kst.slice(0, 10),
+      timeUtc: candle.candle_date_time_utc,
+      timeKst: candle.candle_date_time_kst,
       ms: Date.parse(`${candle.candle_date_time_utc}Z`),
       close: candle.trade_price,
+      high: candle.high_price,
+      low: candle.low_price,
       volume: candle.candle_acc_trade_volume,
     }))
     .reverse(); // 최신순 → 과거순
