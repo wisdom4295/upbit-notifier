@@ -5,8 +5,8 @@
 import { summarize } from './indicators.js';
 
 /** 기간 동안 얼마나 움직였는지. 직전 종가를 기준으로 삼는다. */
-export function periodMove(candles, fromMs) {
-  const within = candles.filter((candle) => candle.ms >= fromMs);
+export function periodMove(candles, fromMs, toMs = Infinity) {
+  const within = candles.filter((candle) => candle.ms >= fromMs && candle.ms < toMs);
   if (within.length === 0) return null;
 
   // 기간이 시작되기 직전 종가가 기준. 없으면 기간 첫 캔들로 대신한다.

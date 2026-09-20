@@ -49,9 +49,9 @@ test('기간 동안 얼마나 움직였는지 먼저 보여 준다', () => {
   // 첫 캔들은 기간 직전이라 기준가가 되고, 나머지 셋이 오늘 움직임이 된다.
   const series = new Map([['KRW-BTC', candles([100, 120, 90, 110], Date.parse('2026-09-16T00:00:00+09:00') - 15 * 60_000)]]);
   const text = report('daily', [], { markets: ['KRW-BTC'], series });
-  assert.match(text, /오늘 움직임/);
+  assert.match(text, /하루 움직임/);
   assert.match(text, /▲/, '기준가보다 오르면 ▲');
-  assert.match(text, /오늘 90 ~ 120/);
+  assert.match(text, /하루 90 ~ 120/);
 });
 
 test('시세를 못 받은 코인은 그렇다고 적는다', () => {

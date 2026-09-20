@@ -1,6 +1,6 @@
 import { readSignals } from './history.js';
 import { fetchCandles, fetchDailyCandles } from './upbit.js';
-import { todayRange, weekRange } from './period.js';
+import { lastDayRange, lastWeekRange } from './period.js';
 import { periodMove, gapTrend } from './report-stats.js';
 import { signalLabel } from './labels.js';
 
@@ -55,12 +55,12 @@ async function loadDaily(markets, longestDays) {
   return daily;
 }
 
-function movesSection(markets, series, periods, fromMs, label) {
+function movesSection(markets, series, fromMs, toMs, label) {
   const lines = [];
 
   for (const market of markets) {
     const candles = series.get(market) ?? [];
-    const moved = periodMove(candles, fromMs);
+    const moved = periodMove(candles, fromMs, toMs);
     if (!moved) {
       lines.push(`${coinOf(market)}  시세를 받지 못했습니다`);
       continue;
@@ -128,20 +128,21 @@ function signalLines(signals, periods, daily, unit, priceNow) {
 export function formatReport(period, range, { markets, series, dailyCandles = new Map(), signals, periods, unit }) {
   const daily = period === 'daily';
   const fromMs = Date.parse(`${range.from}+09:00`);
+  const toMs = Date.parse(`${range.to}+09:00`);
   const title = daily
     ? `📅 ${koreanDate(range.label)} 마감`
     : `🗓 주간 정리 · ${range.label}`;
 
   const sections = [
     `${title}\n${periods.short}일선 / ${periods.long}일선${periods.vwmaDays ? ` · ${periods.vwmaDays}일 거래량가중선` : ''}`,
-    `<b>■ ${daily ? '오늘' : '이번 주'} 움직임</b>\n${movesSection(markets, series, periods, fromMs, daily ? '오늘' : '주간')}`,
+    `<b>■ ${daily ? '하루' : '한 주'} 움직임</b>\n${movesSection(markets, series, fromMs, toMs, daily ? '하루' : '한 주')}`,
   ];
 
   const gaps = gapSection(markets, dailyCandles, periods);
   if (gaps) sections.push(`<b>■ 지금 두 선</b>\n${gaps}`);
 
   if (signals.length === 0) {
-    sections.push(`<b>■ ${daily ? '오늘' : '이번 주'} 온 알림</b>\n없습니다.`);
+    sections.push(`<b>■ 온 알림</b>\n없습니다.`);
     return sections.join('\n\n');
   }
 
@@ -160,7 +161,7 @@ export function formatReport(period, range, { markets, series, dailyCandles = ne
 }
 
 export async function buildReport(period, config, now = Date.now()) {
-  const range = period === 'daily' ? todayRange(now) : weekRange(now);
+  const range = period === 'daily' ? lastDayRange(now) : lastWeekRange(now);
   const fromMs = Date.parse(`${range.from}+09:00`);
 
   const series = await loadSeries(config.markets, config.candleUnit, fromMs);

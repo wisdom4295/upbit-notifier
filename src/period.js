@@ -16,20 +16,24 @@ const shiftDate = (dateString, days) =>
 /** 0=일 … 6=토 */
 const weekday = (dateString) => new Date(`${dateString}T00:00:00Z`).getUTCDay();
 
-/** 오늘(KST) 0시부터 내일 0시까지 */
-export function todayRange(epochMs = Date.now()) {
-  const date = kstDate(epochMs);
-  return { from: `${date}T00:00:00`, to: `${shiftDate(date, 1)}T00:00:00`, label: date };
+/**
+ * 방금 마감된 하루(어제 0시 ~ 오늘 0시).
+ * 하루가 끝나야 그날을 정리할 수 있다. 자정을 넘긴 뒤 어제를 보낸다.
+ */
+export function lastDayRange(epochMs = Date.now()) {
+  const today = kstDate(epochMs);
+  const date = shiftDate(today, -1);
+  return { from: `${date}T00:00:00`, to: `${today}T00:00:00`, label: date };
 }
 
-/** 이번 주(KST, 월요일 시작) */
-export function weekRange(epochMs = Date.now()) {
+/** 방금 마감된 한 주(지난 월요일 0시 ~ 이번 월요일 0시) */
+export function lastWeekRange(epochMs = Date.now()) {
   const date = kstDate(epochMs);
-  const monday = shiftDate(date, -((weekday(date) + 6) % 7));
-  const nextMonday = shiftDate(monday, 7);
+  const thisMonday = shiftDate(date, -((weekday(date) + 6) % 7));
+  const lastMonday = shiftDate(thisMonday, -7);
   return {
-    from: `${monday}T00:00:00`,
-    to: `${nextMonday}T00:00:00`,
-    label: `${monday} ~ ${shiftDate(nextMonday, -1)}`,
+    from: `${lastMonday}T00:00:00`,
+    to: `${thisMonday}T00:00:00`,
+    label: `${lastMonday} ~ ${shiftDate(thisMonday, -1)}`,
   };
 }
