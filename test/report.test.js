@@ -24,6 +24,15 @@ test('제목에 날짜와 기준을 적는다', () => {
   const text = report('daily', []);
   assert.match(text, /9월 16일/);
   assert.match(text, /50선 \/ 200선/);
+  assert.ok(!text.includes('거래량'), '거래량선을 안 쓰면 제목에도 없다');
+});
+
+test('거래량선을 쓰면 제목에도 적는다', () => {
+  const text = formatReport('daily', range, {
+    markets: [], series: new Map(), signals: [],
+    periods: { short: 50, long: 200, vwma: 100 }, unit: 15,
+  });
+  assert.match(text, /50선 \/ 200선 · 거래량 100선/);
 });
 
 test('주간 리포트는 제목이 다르다', () => {

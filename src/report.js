@@ -121,7 +121,7 @@ export function formatReport(period, range, { markets, series, signals, periods,
     : `🗓 주간 정리 · ${range.label}`;
 
   const sections = [
-    `${title}\n${unit}분봉 · ${periods.short}선 / ${periods.long}선`,
+    `${title}\n${unit}분봉 · ${periods.short}선 / ${periods.long}선${periods.vwma ? ` · 거래량 ${periods.vwma}선` : ''}`,
     `<b>■ ${daily ? '오늘' : '이번 주'} 움직임</b>\n${movesSection(markets, series, periods, fromMs, daily ? '오늘' : '주간')}`,
   ];
 
