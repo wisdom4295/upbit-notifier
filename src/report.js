@@ -7,7 +7,7 @@ import { signalLabel } from './labels.js';
 
 const MAX_LISTED = 20; // 텔레그램 한 통은 4096자 제한이 있다
 const HORIZONS = [1, 4, 24];
-const HORIZON_LABEL = { 1: '1시간', 4: '4시간', 24: '하루' };
+const HORIZON_LABEL = { 1: '1시간 뒤', 4: '4시간 뒤', 24: '하루 뒤' };
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
 const won = (value) =>
@@ -94,16 +94,36 @@ function gapSection(markets, series, periods) {
     .join('\n');
 }
 
+/**
+ * 알림이 온 뒤 값이 어떻게 됐는지. 퍼센트만 적으면 무엇과 견준 값인지 와닿지 않아
+ * 그때 값을 함께 적는다. 아직 그 시각이 오지 않은 것은 한 줄로 모은다.
+ */
+function afterLines(signal) {
+  const lines = [];
+  const waiting = [];
+
+  for (const hours of HORIZONS) {
+    const pct = signal.returns?.[hours];
+    if (typeof pct !== 'number') {
+      waiting.push(HORIZON_LABEL[hours]);
+      continue;
+    }
+    lines.push(`     ${HORIZON_LABEL[hours]} ${won(signal.price * (1 + pct / 100))}원 (${move(pct)})`);
+  }
+
+  if (waiting.length > 0) lines.push(`     ${waiting.join('·')}는 아직`);
+  return lines.join('\n');
+}
+
 function signalLines(signals, periods, daily, unit) {
   return [...signals]
     .sort((a, b) => b.kst.localeCompare(a.kst))
     .slice(0, MAX_LISTED)
     .map((signal) => {
       const { emoji, brief } = signalLabel(signal.type, { ...periods, unit });
-      const after = HORIZONS.map((h) => `${HORIZON_LABEL[h]} ${move(signal.returns?.[h])}`).join(' · ');
       // 주간은 여러 날이 섞이므로 날짜까지 적어야 언제 일인지 안다.
       const when = daily ? signal.kst.slice(11, 16) : signal.kst.slice(5, 16).replace('T', ' ');
-      return `${when}  <b>${coinOf(signal.market)}</b>  ${emoji} ${brief}  ${won(signal.price)}원\n     ${after}`;
+      return `${when}  <b>${coinOf(signal.market)}</b>  ${emoji} ${brief}  ${won(signal.price)}원\n${afterLines(signal)}`;
     })
     .join('\n');
 }

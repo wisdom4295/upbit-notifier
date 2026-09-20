@@ -59,14 +59,18 @@ test('시세를 못 받은 코인은 그렇다고 적는다', () => {
   assert.match(text, /시세를 받지 못했습니다/);
 });
 
-test('아직 하루가 지나지 않은 성과는 —로 적는다', () => {
-  assert.match(report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC')]), /하루 —/);
+test('아직 그 시각이 오지 않은 것은 한 줄로 모아 "아직"이라 적는다', () => {
+  const text = report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC')]);
+  assert.match(text, /1시간 뒤·4시간 뒤·하루 뒤는 아직/);
+  assert.ok(!text.includes('—'), '읽는 사람이 뜻을 짐작해야 하는 기호는 쓰지 않는다');
 });
 
-test('성과는 ▲▼로 보여 준다', () => {
+test('알림 뒤 값은 그때 가격과 등락을 함께 적는다', () => {
+  // price 100 에서 1시간 뒤 1.234% 올랐으면 101.234원
   const text = report('daily', [signal('2026-09-16T09:00:00', 'golden', 'KRW-BTC', { 1: 1.234, 24: -2.5 })]);
-  assert.match(text, /1시간 ▲1.23%/);
-  assert.match(text, /하루 ▼2.5%/);
+  assert.match(text, /1시간 뒤 101.234원 \(▲1.23%\)/);
+  assert.match(text, /하루 뒤 97.5원 \(▼2.5%\)/);
+  assert.match(text, /4시간 뒤는 아직/, '빠진 것만 따로 모은다');
 });
 
 
